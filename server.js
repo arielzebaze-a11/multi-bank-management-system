@@ -22,212 +22,212 @@ const swaggerDocs = {
   ],
   paths: {
     // --- AUTHENTIFICATION ---
-'/api/auth/register': {
-  post: {
-    tags: ['Authentification'],
-    summary: 'Inscription',
-    requestBody: {
-      required: true,
-      content: {
-        'application/json': {
-          schema: {
-            type: 'object',
-            properties: {
-              nom: { type: 'string', example: 'Ariel' },
-              email: { type: 'string', example: 'ariel@example.com' },
-              telephone: { type: 'string', example: '677000000' },
-              // Remplace 'mot_de_passe' par 'code_pin' ici :
-              code_pin: { type: 'string', example: '123456' },
-              agence: { type: 'string', example: 'Bastos' }
+    '/api/auth/register': {
+      post: {
+        tags: ['Authentification'],
+        summary: 'Inscription',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  nom: { type: 'string', example: 'Ariel' },
+                  email: { type: 'string', example: 'ariel@example.com' },
+                  telephone: { type: 'string', example: '677000000' },
+                  // Remplace 'mot_de_passe' par 'code_pin' ici :
+                  code_pin: { type: 'string', example: '123456' },
+                  agence: { type: 'string', example: 'Bastos' }
+                }
+              }
             }
           }
+        },
+        responses: { 201: { description: 'Utilisateur créé' } }
+      }
+    },
+
+    '/api/auth/login': {
+      post: {
+        tags: ['Authentification'],
+        summary: 'Voir ses informations',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  // Remplace email par telephone
+                  telephone: { 
+                    type: 'string', 
+                    example: '677000000' 
+                  },
+                  // Remplace mot_de_passe par code_pin
+                  code_pin: { type: 'string', example: '123456' },
+                  agence: { type: 'string', example: 'Bastos' }
+                }
+              }
+            }
+          }
+        },
+        responses: { 200: { description: 'Connecté' },
+        401: { description: 'Identifiants incorrects' } }
+      }
+    },
+
+    '/api/user/update': {
+      put: {
+        tags: ['Authentification'],
+        summary: 'Mettre à jour son profil (Sécurisé par PIN)',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['telephone', 'code_pin'],
+                properties: {
+                  telephone: { type: 'string', example: '677000000' },
+                  code_pin: { type: 'string', example: '123456' },
+                  nom: { type: 'string', example: 'Ariel Nouveau' },
+                  email: { type: 'string', example: 'ariel.update@example.com' },
+                  agence: { type: 'string', example: 'Akwa' }
+                }
+              }
+            }
+          }
+        },
+        responses: { 200: { description: 'Mis à jour avec succès' } }
+      }
+    },
+
+    '/api/account/balance': {
+      post: {
+        tags: ['Utilisateur (Client)'],
+        summary: 'Consulter mon solde (Sécurisé par PIN)',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['telephone', 'code_pin'],
+                properties: {
+                  telephone: { type: 'string', example: '677000000' },
+                  code_pin: { type: 'string', example: '123456' }
+                }
+              }
+            }
+          }
+        },
+        responses: { 200: { description: 'Solde récupéré' } }
+      }
+    },
+
+    '/api/transactions/history': {
+      post: {
+        tags: ['Utilisateur (Client)'],
+        summary: 'Historique des transactions (Sécurisé par PIN)',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['telephone', 'code_pin'],
+                properties: {
+                  telephone: { type: 'string', example: '677000000' },
+                  code_pin: { type: 'string', example: '123456' }
+                }
+              }
+            }
+          }
+        },
+        responses: { 200: { description: 'Historique récupéré' } }
+      }
+    },
+
+    '/api/transactions/verify-receiver/{telephone}': {
+      get: {
+        tags: ['Transactions'],
+        summary: 'Vérifier le nom du destinataire avant virement',
+        parameters: [
+          {
+            name: 'telephone',
+            in: 'path',
+            required: true,
+            schema: { type: 'string' },
+            description: 'Le numéro de téléphone du destinataire'
+          }
+        ],
+        responses: {
+          200: { description: 'Utilisateur trouvé' },
+          404: { description: 'Numéro inconnu' }
         }
       }
     },
-    responses: { 201: { description: 'Utilisateur créé' } }
-  }
-},
 
-'/api/auth/login': {
-  post: {
-    tags: ['Authentification'],
-    summary: 'Voir ses informations',
-    requestBody: {
-      required: true,
-      content: {
-        'application/json': {
-          schema: {
-            type: 'object',
-            properties: {
-              // Remplace email par telephone
-              telephone: { 
-                type: 'string', 
-                example: '677000000' 
-              },
-              // Remplace mot_de_passe par code_pin
-              code_pin: { type: 'string', example: '123456' },
-              agence: { type: 'string', example: 'Bastos' }
+    '/api/transactions/transfer': {
+      post: {
+        tags: ['Transactions'],
+        summary: 'Effectuer un virement',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['expediteurTel', 'codePin', 'destinataireTel', 'montant'],
+                properties: {
+                  expediteurTel: { type: 'string', example: '677000000' },
+                  codePin: { type: 'string', example: '123456' },
+                  destinataireTel: { type: 'string', example: '670000002' },
+                  nomConfirme: { 
+                    type: 'string', 
+                    description: 'Le nom récupéré via verify-receiver',
+                    example: 'Ariel' 
+                  },
+                  montant: { type: 'number', example: 5000 }
+                }
+              }
             }
           }
+        },
+        responses: {
+          200: { description: 'Virement réussi' },
+          400: { description: 'Erreur de nom ou solde insuffisant' },
+          401: { description: 'PIN incorrect' }
         }
       }
     },
-    responses: { 200: { description: 'Connecté' },
-    401: { description: 'Identifiants incorrects' } }
-  }
-},
 
-'/api/user/update': {
-  put: {
-    tags: ['Authentification'],
-    summary: 'Mettre à jour son profil (Sécurisé par PIN)',
-    requestBody: {
-      required: true,
-      content: {
-        'application/json': {
-          schema: {
-            type: 'object',
-            required: ['telephone', 'code_pin'],
-            properties: {
-              telephone: { type: 'string', example: '677000000' },
-              code_pin: { type: 'string', example: '123456' },
-              nom: { type: 'string', example: 'Ariel Nouveau' },
-              email: { type: 'string', example: 'ariel.update@example.com' },
-              agence: { type: 'string', example: 'Akwa' }
+    '/api/transactions/dépôt': {
+      post: {
+        tags: ['Transactions'],
+        summary: 'Déposer de l\'argent',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['telephone', 'montant'],
+                properties: {
+                  telephone: { type: 'string', example: '677000000' },
+                  montant: { type: 'number', example: 10000 }
+                }
+              }
             }
           }
+        },
+        responses: {
+          200: { description: 'Dépôt réussi' },
+          404: { description: 'Utilisateur non trouvé' }
         }
       }
     },
-    responses: { 200: { description: 'Mis à jour avec succès' } }
-  }
-},
-
-'/api/account/balance': {
-  post: {
-    tags: ['Utilisateur (Client)'],
-    summary: 'Consulter mon solde (Sécurisé par PIN)',
-    requestBody: {
-      required: true,
-      content: {
-        'application/json': {
-          schema: {
-            type: 'object',
-            required: ['telephone', 'code_pin'],
-            properties: {
-              telephone: { type: 'string', example: '677000000' },
-              code_pin: { type: 'string', example: '123456' }
-            }
-          }
-        }
-      }
-    },
-    responses: { 200: { description: 'Solde récupéré' } }
-  }
-},
-
-'/api/transactions/history': {
-  post: {
-    tags: ['Utilisateur (Client)'],
-    summary: 'Historique des transactions (Sécurisé par PIN)',
-    requestBody: {
-      required: true,
-      content: {
-        'application/json': {
-          schema: {
-            type: 'object',
-            required: ['telephone', 'code_pin'],
-            properties: {
-              telephone: { type: 'string', example: '677000000' },
-              code_pin: { type: 'string', example: '123456' }
-            }
-          }
-        }
-      }
-    },
-    responses: { 200: { description: 'Historique récupéré' } }
-  }
-},
-
-'/api/transactions/verify-receiver/{telephone}': {
-  get: {
-    tags: ['Transactions'],
-    summary: 'Vérifier le nom du destinataire avant virement',
-    parameters: [
-      {
-        name: 'telephone',
-        in: 'path',
-        required: true,
-        schema: { type: 'string' },
-        description: 'Le numéro de téléphone du destinataire'
-      }
-    ],
-    responses: {
-      200: { description: 'Utilisateur trouvé' },
-      404: { description: 'Numéro inconnu' }
-    }
-  }
-},
-
-'/api/transactions/transfer': {
-  post: {
-    tags: ['Transactions'],
-    summary: 'Effectuer un virement',
-    requestBody: {
-      required: true,
-      content: {
-        'application/json': {
-          schema: {
-            type: 'object',
-            required: ['expediteurTel', 'codePin', 'destinataireTel', 'montant'],
-            properties: {
-              expediteurTel: { type: 'string', example: '677000000' },
-              codePin: { type: 'string', example: '123456' },
-              destinataireTel: { type: 'string', example: '670000002' },
-              nomConfirme: { 
-                type: 'string', 
-                description: 'Le nom récupéré via verify-receiver',
-                example: 'Ariel' 
-              },
-              montant: { type: 'number', example: 5000 }
-            }
-          }
-        }
-      }
-    },
-    responses: {
-      200: { description: 'Virement réussi' },
-      400: { description: 'Erreur de nom ou solde insuffisant' },
-      401: { description: 'PIN incorrect' }
-    }
-  }
-},
-
-'/api/transactions/dépôt': {
-  post: {
-    tags: ['Transactions'],
-    summary: 'Déposer de l\'argent',
-    requestBody: {
-      required: true,
-      content: {
-        'application/json': {
-          schema: {
-            type: 'object',
-            required: ['telephone', 'montant'],
-            properties: {
-              telephone: { type: 'string', example: '677000000' },
-              montant: { type: 'number', example: 10000 }
-            }
-          }
-        }
-      }
-    },
-    responses: {
-      200: { description: 'Dépôt réussi' },
-      404: { description: 'Utilisateur non trouvé' }
-    }
-  }
-},
 
     '/api/transactions/withdraw': {
       post: { 
@@ -280,26 +280,6 @@ const swaggerDocs = {
         parameters: [{ in: 'path', name: 'userId', required: true, schema: { type: 'integer' } }],
         responses: { 200: { description: 'OK' } } 
       }
-    },
-    '/api/transactions/transfer': {
-      post: { tags: ['Utilisateur (Client)'], summary: 'Effectuer un virement', responses: { 200: { description: 'OK' } } }
-    },
-    '/api/transactions/deposit': {
-      post: { tags: ['Utilisateur (Client)'], summary: 'Déposer de l\'argent', responses: { 200: { description: 'OK' } } }
-    },
-    '/api/transactions/withdraw': {
-      post: { tags: ['Utilisateur (Client)'], summary: 'Retirer de l\'argent', responses: { 200: { description: 'OK' } } }
-    },
-    '/api/account/rib/{userId}': {
-      get: { 
-        tags: ['Utilisateur (Client)'], 
-        summary: 'Télécharger RIB (PDF)', 
-        parameters: [{ in: 'path', name: 'userId', required: true, schema: { type: 'integer' } }],
-        responses: { 200: { description: 'OK' } } 
-      }
-    },
-    '/api/account/close': {
-      delete: { tags: ['Utilisateur (Client)'], summary: 'Clôturer le compte', responses: { 200: { description: 'OK' } } }
     },
 
     // --- ADMINISTRATION ---

@@ -78,50 +78,54 @@ const swaggerDocs = {
 },
 
 '/api/user/update': {
-    put: {
-      tags: ['Authentification'],
-      summary: 'Mettre à jour le profil',
-      requestBody: {
-        required: true,
-        content: { 'application/json': { schema: { /* tes champs ici */ } } }
-      },
-      responses: { 200: { description: 'Mis à jour' } }
-    }
-  },
-
-  // AJOUTE CELLE-CI POUR LE SOLDE
-  '/api/account/balance': {
-    post: {
-      tags: ['Utilisateur (CLIENT)'],
-      summary: 'Consulter mon solde',
-      requestBody: {
-        required: true,
-        content: {
-          'application/json': {
-            schema: {
-              type: 'object',
-              properties: {
-                telephone: { type: 'string', example: '670000101' },
-                code_pin: { type: 'string', example: '123456' }
-              }
+  put: {
+    tags: ['Authentification'],
+    summary: 'Mettre à jour son profil (Sécurisé par PIN)',
+    requestBody: {
+      required: true,
+      content: {
+        'application/json': {
+          schema: {
+            type: 'object',
+            required: ['telephone', 'code_pin'],
+            properties: {
+              telephone: { type: 'string', example: '677000000' },
+              code_pin: { type: 'string', example: '123456' },
+              nom: { type: 'string', example: 'Ariel Nouveau' },
+              email: { type: 'string', example: 'ariel.update@example.com' },
+              agence: { type: 'string', example: 'Akwa' }
             }
           }
         }
-      },
-      responses: { 200: { description: 'Succès' } }
-    }
+      }
+    },
+    responses: { 200: { description: 'Mis à jour avec succès' } }
+  }
 },
 
-
-        // --- UTILISATEUR (CLIENT) ---
-        '/api/account/balance/{userId}': {
-          get: { 
-            tags: ['Utilisateur (Client)'], 
-            summary: 'Consulter son solde',
-            parameters: [{ in: 'path', name: 'userId', required: true, schema: { type: 'integer' }, example: 1 }],
-            responses: { 200: { description: 'OK' } } 
+'/api/account/balance': {
+  post: {
+    tags: ['Utilisateur (Client)'],
+    summary: 'Consulter mon solde (Sécurisé par PIN)',
+    requestBody: {
+      required: true,
+      content: {
+        'application/json': {
+          schema: {
+            type: 'object',
+            required: ['telephone', 'code_pin'],
+            properties: {
+              telephone: { type: 'string', example: '677000000' },
+              code_pin: { type: 'string', example: '123456' }
+            }
           }
-        },
+        }
+      }
+    },
+    responses: { 200: { description: 'Solde récupéré' } }
+  }
+},
+
         '/api/transactions/history/{userId}': {
           get: { 
             tags: ['Utilisateur (Client)'], 

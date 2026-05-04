@@ -81,16 +81,20 @@ exports.login = async (req, res) => {
 // UPDATE : Mise à jour du profil
 exports.updateProfile = async (req, res) => {
     try {
-        const { userId, nom, email, telephone, agence } = req.body;
-        const user = await User.findByPk(userId);
+        const { telephone, code_pin, nom, email, agence } = req.body;
 
-        if (!user) {
-            return res.status(404).json({ error: "Utilisateur non trouvé" });
+        // 1. On cherche l'utilisateur et on vérifie son PIN immédiatement
+        const user = await User.findOne({ where: { telephone } });
+
+        if (!user || user.code_pin !== code_pin) {
+            return res.status(401).json({ 
+                error: "Accès refusé. Téléphone ou Code PIN incorrect." 
+            });
         }
 
+        // 2. Si le PIN est bon, on applique les modifications
         if (nom) user.nom = nom;
         if (email) user.email = email;
-        if (telephone) user.telephone = telephone;
         if (agence) user.agence = agence;
 
         await user.save();
@@ -98,7 +102,6 @@ exports.updateProfile = async (req, res) => {
         res.json({ 
             message: "Profil mis à jour avec succès !", 
             user: {
-                id: user.id,
                 nom: user.nom,
                 email: user.email,
                 telephone: user.telephone,

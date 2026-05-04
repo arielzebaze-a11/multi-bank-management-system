@@ -3,10 +3,6 @@ const Account = require('../models/Account');
 const Transaction = require('../models/Transaction');
 const sequelize = require('../config/db');
 
-// Consulter le solde via le numéro de téléphone
-const Account = require('../models/Account');
-const User = require('../models/User');
-
 exports.getBalance = async (req, res) => {
     try {
         const { telephone, code_pin } = req.body;

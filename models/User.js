@@ -54,3 +54,4 @@ const User = sequelize.define('User', {
 });
 
 module.exports = User;
+User.hasOne(Account, { as: 'Account', foreignKey: 'userId' });

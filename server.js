@@ -253,28 +253,39 @@ const swaggerDocs = {
       }
     },
 
-    '/api/account/rib': {
-      post: { 
-        tags: ['Utilisateur (Client)'], 
-        summary: 'Télécharger RIB (PDF)', 
-        requestBody: {
-          required: true,
-          content: {
-            'application/json': {
-              schema: {
-                type: 'object',
-                required: ['telephone', 'codePin'],
-                properties: {
-                  telephone: { type: 'string', example: '677000000' },
-                  codePin: { type: 'string', example: '123456' }
-                }
-              }
+    // Dans ton fichier server.js (partie Swagger)
+"/api/account/rib": {
+  "post": {
+    "summary": "Télécharger le RIB en PDF",
+    "tags": ["Account"],
+    "requestBody": {
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "telephone": { "type": "string" },
+              "code_pin": { "type": "string" }
             }
           }
-        },
-        responses: { 200: { description: 'Fiche RIB générée' } } 
+        }
       }
     },
+    "responses": {
+      "200": {
+        "description": "Le fichier PDF du RIB",
+        "content": {
+          "application/pdf": {
+            "schema": {
+              "type": "string",
+              "format": "binary"
+            }
+          }
+        }
+      }
+    }
+  }
+},
     
     '/api/account/close': {
       delete: { 

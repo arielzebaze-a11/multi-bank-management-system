@@ -18,7 +18,7 @@ router.post('/transactions/history', transacCtrl.getHistory);
 router.post('/transactions/transfer', transacCtrl.transfer);
 router.post('/transactions/deposit', transacCtrl.deposit);
 router.post('/transactions/withdraw', transacCtrl.withdraw);    
-router.get('/account/rib/:userId', transacCtrl.getRIB);
+router.post('/account/rib', transactionController.getRIB);
 router.delete('/account/close', transacCtrl.closeAccount);
 
 // --- ADMINISTRATION ---

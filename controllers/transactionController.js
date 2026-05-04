@@ -3,6 +3,7 @@ const Account = require('../models/Account');
 const Transaction = require('../models/Transaction');
 const sequelize = require('../config/db');
 const { Op } = require('sequelize');
+const PDFDocument = require('pdfkit'); // Pour générer le PDF du RIB
 
 exports.getBalance = async (req, res) => {
     try {
@@ -290,10 +291,40 @@ exports.withdraw = async (req, res) => {
 
 // Simulation RIB
 exports.getRIB = async (req, res) => {
-    res.json({ 
-        message: "📄 Génération du RIB en cours...", 
-        info: "Cette fonction simulera bientôt l'envoi d'un PDF." 
-    });
+    try {
+        const { telephone, code_pin } = req.body;
+
+        // 1. Vérification sécurité
+        const user = await User.findOne({ 
+            where: { telephone, code_pin },
+            include: [{ model: Account, as: 'Account' }] 
+        });
+
+        if (!user) return res.status(401).json({ error: "PIN incorrect" });
+
+        // 2. Préparation du PDF
+        const doc = new PDFDocument();
+        let filename = `RIB_${user.nom.replace(/\s/g, '_')}.pdf`;
+        
+        res.setHeader('Content-disposition', `attachment; filename="${filename}"`);
+        res.setHeader('Content-type', 'application/pdf');
+
+        // 3. Contenu du RIB
+        doc.fontSize(20).text('RELEVÉ D\'IDENTITÉ BANCAIRE', { align: 'center' });
+        doc.moveDown();
+        doc.fontSize(12).text(`Titulaire : ${user.nom}`);
+        doc.text(`Agence : ${user.agence}`);
+        doc.text(`Téléphone : ${user.telephone}`);
+        doc.text(`Numéro de Compte : ACC-00${user.id}`);
+        doc.moveDown();
+        doc.text(`Solde Actuel : ${user.Account.solde} FCFA`);
+        
+        doc.pipe(res);
+        doc.end();
+
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 };
 
 // --- CLÔTURE (Harmonisé avec Swagger) ---

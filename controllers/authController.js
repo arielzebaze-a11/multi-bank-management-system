@@ -42,25 +42,27 @@ exports.register = async (req, res) => {
     }
 };
 
-// LOGIN : Connexion via Téléphone et Code PIN
+// LOGIN : Voir ses informations (Connexion via Téléphone, PIN et Agence)
 exports.login = async (req, res) => {
     try {
-        const { email, telephone, code_pin, agence } = req.body;
+        // On ne récupère que ce qui est nécessaire
+        const { telephone, code_pin, agence } = req.body;
 
-        // 1. Recherche par Email, Téléphone ET Agence
+        // 1. Recherche uniquement par Téléphone et Agence
         const user = await User.findOne({ 
-            where: { email, telephone, agence } 
+            where: { telephone, agence } 
         });
 
         // 2. Vérification de l'existence et du PIN
         if (!user || user.code_pin !== code_pin) {
             return res.status(401).json({ 
-                error: "Identifiants ou Agence incorrects. Vérifiez votre email, téléphone, agence et code PIN." 
+                error: "Accès refusé. Téléphone, Agence ou Code PIN incorrect." 
             });
         }
 
+        // 3. Réponse avec les informations
         res.json({
-            message: "Connexion réussie",
+            message: "Informations récupérées avec succès",
             user: {
                 id: user.id,
                 nom: user.nom,

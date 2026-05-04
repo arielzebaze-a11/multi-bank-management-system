@@ -50,7 +50,7 @@ const swaggerDocs = {
 '/api/auth/login': {
   post: {
     tags: ['Authentification'],
-    summary: 'Connexion',
+    summary: 'Voir ses informations',
     requestBody: {
       required: true,
       content: {
@@ -71,7 +71,8 @@ const swaggerDocs = {
         }
       }
     },
-    responses: { 200: { description: 'Connecté' } }
+    responses: { 200: { description: 'Connecté' },
+    401: { description: 'Identifiants incorrects' } }
   }
 },
         // --- UTILISATEUR (CLIENT) ---

@@ -257,7 +257,7 @@ const swaggerDocs = {
 "/api/account/rib": {
   "post": {
     "summary": "Télécharger le RIB en PDF",
-    "tags": ["Account"],
+    "tags": ["Utilisateur (Client)"],
     "requestBody": {
       "content": {
         "application/json": {

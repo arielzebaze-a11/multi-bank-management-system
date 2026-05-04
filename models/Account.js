@@ -7,20 +7,24 @@ const Account = sequelize.define('Account', {
         primaryKey: true,
         autoIncrement: true
     },
-    // ON SUPPRIME numero_compte ICI car il n'existe pas dans Neon
     solde: {
         type: DataTypes.DECIMAL(15, 2),
         defaultValue: 0.00
     },
-    userId: { // Vérifie bien si c'est userId ou user_id dans Neon
+    userId: { 
         type: DataTypes.INTEGER,
         allowNull: false,
-        field: 'userId', // Force Sequelize à utiliser le nom exact de Neon
+        field: 'userId', 
         references: { model: 'users', key: 'id' }
+    },
+    statut: {
+        type: DataTypes.ENUM('ACTIF', 'BLOQUE', 'SUPPRIME'),
+        defaultValue: 'ACTIF'
     }
 }, {
     tableName: 'accounts',
-    timestamps: true // Tu as des colonnes createdAt/updatedAt dans Neon, donc mets true
-});
+    timestamps: true,
+    underscored: true // <--- C'est ici qu'on l'ajoute
+}); 
 
 module.exports = Account;

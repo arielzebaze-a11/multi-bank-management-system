@@ -330,15 +330,15 @@ exports.getRIB = async (req, res) => {
 // --- CLÔTURE (Harmonisé avec Swagger) ---
 exports.closeAccount = async (req, res) => {
     try {
-        const { telephone, codePin } = req.body; // Changé userId -> telephone/codePin[cite: 6, 7]
-
+        const { telephone, codePin } = req.body;
         const user = await User.findOne({ where: { telephone, code_pin: codePin } });
-        if (!user) {
-            return res.status(401).json({ error: "❌ Action impossible : identifiants incorrects" });
-        }
+        
+        if (!user) return res.status(401).json({ error: "Identifiants incorrects" });
 
-        await Account.destroy({ where: { userId: user.id } });
-        res.json({ message: "⚠️ Compte clôturé avec succès." });
+        // On ne supprime plus, on marque comme SUPPRIME
+        await Account.update({ statut: 'SUPPRIME' }, { where: { userId: user.id } });
+        
+        res.json({ message: "⚠️ Compte clôturé (archivé) avec succès." });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

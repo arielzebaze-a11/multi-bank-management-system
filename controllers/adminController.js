@@ -50,18 +50,91 @@ exports.adjustBalance = async (req, res) => {
 exports.deleteUser = async (req, res) => {
     try {
         const { userId } = req.params;
-        const user = await User.findByPk(userId);
-        if (!user) return res.status(404).json({ error: "Utilisateur non trouvé" });
-        await user.destroy();
-        res.json({ message: "Utilisateur supprimé avec succès" });
+        
+        // 1. Trouver l'utilisateur et son compte
+        const user = await User.findByPk(userId, {
+            include: [{ model: Account, as: 'Account' }]
+        });
+
+        if (!user) {
+            return res.status(404).json({ error: "Utilisateur non trouvé" });
+        }
+
+        // 2. Mettre à jour le statut du compte en 'SUPPRIME'
+        // On suppose que chaque utilisateur a un compte lié
+        if (user.Account) {
+            await user.Account.update({ statut: 'SUPPRIME' });
+        }
+
+        // Optionnel : Tu peux aussi marquer l'utilisateur comme inactif si tu as un champ dédié
+        // await user.update({ actif: false }); 
+
+        res.json({ 
+            message: "Utilisateur marqué comme SUPPRIME avec succès (données conservées en archive)" 
+        });
+
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: "Erreur lors de la suppression logique : " + error.message });
     }
 };
 
 // 7. Rapports globaux
 exports.getGlobalReport = async (req, res) => {
-    res.json({ message: "Génération du rapport global...", date: new Date() });
+    const allUsers = await User.findAll({ include: [{ model: Account, as: 'Account' }] });
+    const allTransac = await Transaction.findAll();
+
+    const rendu = {
+        SYNTHESE_SYSTEME: {
+            total_clients: allUsers.length,
+            liquidite_totale: allUsers.reduce((sum, u) => sum + parseFloat(u.Account?.solde || 0), 0) + " FCFA",
+            volume_transactions: allTransac.length
+        },
+        ETAT_DES_COMPTES: {
+            actifs: allUsers.filter(u => u.Account?.statut === 'ACTIF').length,
+            bloques: allUsers.filter(u => u.Account?.statut === 'BLOQUE').length,
+            supprimes: allUsers.filter(u => u.Account?.statut === 'SUPPRIME').length
+        },
+        LISTE_DETAILLEE_CLIENTS: allUsers.map(u => ({
+            id: u.id,
+            nom: u.nom,
+            tel: u.telephone,
+            agence: u.agence,
+            solde: u.Account?.solde || 0,
+            etat: u.Account?.statut || 'N/A'
+        })),
+        DERNIERES_TRANSACTIONS: allTransac.slice(0, 10) // Les 10 plus récentes
+    };
+
+    res.json(rendu);
+};
+
+exports.getGlobalReport = async (req, res) => {
+    const allUsers = await User.findAll({ include: [{ model: Account, as: 'Account' }] });
+    const allTransac = await Transaction.findAll();
+
+    const rendu = {
+        SYNTHESE_SYSTEME: {
+            total_clients: allUsers.length,
+            liquidite_totale: allUsers.reduce((sum, u) => sum + parseFloat(u.Account?.solde || 0), 0) + " FCFA",
+            volume_transactions: allTransac.length
+        },
+        ETAT_DES_COMPTES: {
+            actifs: allUsers.filter(u => u.Account?.statut === 'ACTIF').length,
+            bloques: allUsers.filter(u => u.Account?.statut === 'BLOQUE').length,
+            supprimes: allUsers.filter(u => u.Account?.statut === 'SUPPRIME').length
+        },
+        LISTE_DETAILLEE_CLIENTS: allUsers.map(u => ({
+            id: u.id,
+            nom: u.nom,
+            tel: u.telephone,
+            agence: u.agence,
+            solde: u.Account?.solde || 0,
+            etat: u.Account?.statut || 'N/A'
+        })),
+        DERNIERES_TRANSACTIONS: allTransac.slice(0, 10) // Les 10 plus récentes
+    };
+
+    res.json(rendu);
 };
 
 // 9. Créer admin

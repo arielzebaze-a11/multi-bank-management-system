@@ -94,18 +94,38 @@ exports.getHistory = async (req, res) => {
     }
 };
 
+// --- VÉRIFICATION DU DESTINATAIRE ---
 exports.verifyReceiver = async (req, res) => {
     try {
         const { telephone } = req.params;
+
+        // 1. Vérification du format (Exemple simple : doit être un chiffre)
+        if (!/^\d+$/.test(telephone)) {
+            return res.status(400).json({ 
+                error: "Numéro invalide", 
+                message: "Le numéro de téléphone ne doit contenir que des chiffres." 
+            });
+        }
+
+        // 2. Recherche de l'utilisateur
         const user = await User.findOne({ where: { telephone } });
 
         if (!user) {
-            return res.status(404).json({ error: "Ce numéro n'appartient à aucun compte." });
+            return res.status(404).json({ 
+                error: "Compte non trouvé", 
+                message: "Aucun utilisateur n'est enregistré avec ce numéro." 
+            });
         }
 
-        res.json({ nom: user.nom }); // Renvoie le nom pour confirmation visuelle
+        // 3. Succès
+        res.json({ 
+            status: "SUCCESS",
+            nom: user.nom,
+            message: "Destinataire identifié avec succès."
+        });
+
     } catch (error) {
-        res.status(500).json({ error: "Erreur lors de la vérification : " + error.message });
+        res.status(500).json({ error: "Erreur technique : " + error.message });
     }
 };
 
@@ -226,21 +246,40 @@ exports.deposit = async (req, res) => {
     }
 };
 
-// Retrait
+// --- RETRAIT  ---
 exports.withdraw = async (req, res) => {
     try {
-        const { userId, montant } = req.body;
-        const account = await Account.findOne({ where: { user_id: userId } });
-        if (!account) return res.status(404).json({ error: "Compte non trouvé" });
-        
+        const { telephone, codePin, montant } = req.body; // Changé userId -> telephone/codePin
+
+        // 1. Authentification
+        const user = await User.findOne({ 
+            where: { telephone, code_pin: codePin },
+            include: [{ model: Account, as: 'Account' }] 
+        });
+
+        if (!user) {
+            return res.status(401).json({ error: "❌ Téléphone ou code PIN incorrect" });
+        }
+
+        // 2. Vérification solde
+        const account = user.Account;
         if (parseFloat(account.solde) < parseFloat(montant)) {
             return res.status(400).json({ error: "❌ Solde insuffisant" });
         }
-        
+
+        // 3. Mise à jour
         account.solde = parseFloat(account.solde) - parseFloat(montant);
         await account.save();
-        
-        res.json({ message: "✅ Retrait réussi", nouveau_solde: account.solde });
+
+        // 4. Historique
+        await Transaction.create({
+            type: 'RETRAIT',
+            montant: montant,
+            expediteur_tel: telephone,
+            status: 'SUCCESS'
+        });
+
+        res.json({ message: "✅ Retrait réussi", nouveau_solde: `${account.solde} FCFA` });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -254,12 +293,18 @@ exports.getRIB = async (req, res) => {
     });
 };
 
-// Clôture
+// --- CLÔTURE (Harmonisé avec Swagger) ---
 exports.closeAccount = async (req, res) => {
     try {
-        const { userId } = req.body;
-        await Account.destroy({ where: { user_id: userId } });
-        res.json({ message: "⚠️ Compte clôturé. Action irréversible effectuée." });
+        const { telephone, codePin } = req.body; // Changé userId -> telephone/codePin[cite: 6, 7]
+
+        const user = await User.findOne({ where: { telephone, code_pin: codePin } });
+        if (!user) {
+            return res.status(401).json({ error: "❌ Action impossible : identifiants incorrects" });
+        }
+
+        await Account.destroy({ where: { userId: user.id } });
+        res.json({ message: "⚠️ Compte clôturé avec succès." });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

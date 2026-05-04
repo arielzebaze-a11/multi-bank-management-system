@@ -106,13 +106,25 @@ const swaggerDocs = {
     //UTILISATEUR (CLIENT)
 
     '/api/transactions/verify-receiver/{telephone}': {
-     get: { 
-          tags: ['Utilisateur (Client)'], 
-          summary: '0 - Vérifier le nom du destinataire',
-          parameters: [{ in: 'path', name: 'telephone', required: true, schema: { type: 'string' } }],
-          responses: { 200: { description: 'Nom trouvé' } } 
-        }
-      },
+      get: { 
+        tags: ['Utilisateur (Client)'], 
+        summary: '0 - Vérifier le nom du destinataire',
+        parameters: [
+          { 
+            in: 'path', 
+            name: 'telephone', 
+            required: true, 
+            description: 'Numéro de téléphone du destinataire (ex: 677000000)',
+            schema: { type: 'string' } 
+          }
+        ],
+        responses: { 
+          200: { description: 'Nom trouvé' },
+          400: { description: 'Numéro invalide (format incorrect)' },
+          404: { description: 'Compte non trouvé' }
+        } 
+      }
+    },
 
     '/api/transactions/balance': {
       post: {
@@ -163,7 +175,7 @@ const swaggerDocs = {
 
     '/api/transactions/transfer': {
       post: {
-        tags: ['Transactions'],
+        tags: ['Utilisateur (Client)'],
         summary: 'Effectuer un virement',
         requestBody: {
           required: true,
@@ -197,7 +209,7 @@ const swaggerDocs = {
 
     '/api/transactions/dépôt': {
       post: {
-        tags: ['Transactions'],
+        tags: ['Utilisateur (Client)'],
         summary: 'Déposer de l\'argent',
         requestBody: {
           required: true,
@@ -241,12 +253,26 @@ const swaggerDocs = {
       }
     },
 
-    '/api/account/rib/{userId}': {
-      get: { 
+    '/api/account/rib': {
+      post: { 
         tags: ['Utilisateur (Client)'], 
         summary: 'Télécharger RIB (PDF)', 
-        parameters: [{ in: 'path', name: 'userId', required: true, schema: { type: 'integer' }, example: 1 }],
-        responses: { 200: { description: 'OK' } } 
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['telephone', 'codePin'],
+                properties: {
+                  telephone: { type: 'string', example: '677000000' },
+                  codePin: { type: 'string', example: '123456' }
+                }
+              }
+            }
+          }
+        },
+        responses: { 200: { description: 'Fiche RIB générée' } } 
       }
     },
     
@@ -268,35 +294,6 @@ const swaggerDocs = {
         responses: { 200: { description: 'Compte clôturé' } }
       }
     },
-
-    // '/api/transactions/history/{userId}': {
-    //   get: { 
-    //     tags: ['Utilisateur (Client)'], 
-    //     summary: 'Historique des transactions',
-    //     parameters: [{ in: 'path', name: 'userId', required: true, schema: { type: 'integer' } }],
-    //     responses: { 200: { description: 'OK' } } 
-    //   }
-    // },
-    // '/api/transactions/transfer': {
-    //   post: { tags: ['Utilisateur (Client)'], summary: 'Effectuer un virement', responses: { 200: { description: 'OK' } } }
-    // },
-    // '/api/transactions/deposit': {
-    //   post: { tags: ['Utilisateur (Client)'], summary: 'Déposer de l\'argent', responses: { 200: { description: 'OK' } } }
-    // },
-    // '/api/transactions/withdraw': {
-    //   post: { tags: ['Utilisateur (Client)'], summary: 'Retirer de l\'argent', responses: { 200: { description: 'OK' } } }
-    // },
-    // '/api/account/rib/{userId}': {
-    //   get: { 
-    //     tags: ['Utilisateur (Client)'], 
-    //     summary: 'Télécharger RIB (PDF)', 
-    //     parameters: [{ in: 'path', name: 'userId', required: true, schema: { type: 'integer' } }],
-    //     responses: { 200: { description: 'OK' } } 
-    //   }
-    // },
-    // '/api/account/close': {
-    //   delete: { tags: ['Utilisateur (Client)'], summary: 'Clôturer le compte', responses: { 200: { description: 'OK' } } }
-    // },
 
     // --- ADMINISTRATION ---
     '/api/admin/users': {
@@ -397,24 +394,6 @@ const swaggerDocs = {
         responses: { 200: { description: 'Solde ajusté' } } 
       }
     },
-    // '/api/admin/transactions': {
-    //   get: { tags: ['Administration'], summary: 'Voir toutes les transactions du système', responses: { 200: { description: 'OK' } } }
-    // },
-    // '/api/admin/reports/global': {
-    //   get: { tags: ['Administration'], summary: 'Générer des rapports financiers globaux', responses: { 200: { description: 'OK' } } }
-    // },
-    // '/api/admin/create-admin': {
-    //   post: { tags: ['Administration'], summary: 'Créer d\'autres comptes administrateurs', responses: { 201: { description: 'Admin créé' } } }
-    // },
-    // '/api/admin/settings': {
-    //   put: { tags: ['Administration'], summary: 'Définir plafonds et frais bancaires', responses: { 200: { description: 'Paramètres mis à jour' } } }
-    // },
-    // '/api/admin/account/status': {
-    //   put: { tags: ['Administration'], summary: 'Valider, Activer ou Bloquer un compte', responses: { 200: { description: 'OK' } } }
-    // },
-    // '/api/admin/account/adjust-balance': {
-    //   put: { tags: ['Administration'], summary: 'Modifier le solde (Correction)', responses: { 200: { description: 'OK' } } }
-    // }
   }
 };
 

@@ -207,7 +207,7 @@ const swaggerDocs = {
       }
     },
 
-    '/api/transactions/dépôt': {
+    '/api/transactions/deposit': {
       post: {
         tags: ['Utilisateur (Client)'],
         summary: 'Déposer de l\'argent',
@@ -429,7 +429,7 @@ async function startServer() {
 
 // Capture les routes inexistantes et renvoie du JSON au lieu du HTML
 app.use((req, res) => {
-    res.status(404).json({ error: "Route inexistante", message: "Le chemin demandé n'existe pas." });
+    res.status(404).json("consulte ce lien : https://bank-api-v2-wmp3.onrender.com/api-docs");
 });
 
 startServer();

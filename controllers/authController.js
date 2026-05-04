@@ -1,9 +1,5 @@
 const User = require('../models/User');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-
 const Account = require('../models/Account');
-const User = require('../models/User');
 
 // CREATE : Inscription d'un utilisateur avec Code PIN
 exports.register = async (req, res) => {
@@ -19,6 +15,7 @@ exports.register = async (req, res) => {
             agence 
         });
 
+        // 2. Automatisme : Création du compte bancaire lié
         await Account.create({ 
             userId: newUser.id, 
             solde: 0.00 
@@ -34,7 +31,6 @@ exports.register = async (req, res) => {
                 agence: newUser.agence
             }
         });
-
     } catch (error) {
         if (error.name === 'SequelizeValidationError' || error.name === 'SequelizeUniqueConstraintError') {
             return res.status(400).json({ 
@@ -80,7 +76,7 @@ exports.login = async (req, res) => {
     }
 };
 
-// UPDATE : Mise à jour du profil par l'utilisateur lui-même
+// UPDATE : Mise à jour du profil
 exports.updateProfile = async (req, res) => {
     try {
         const { userId, nom, email, telephone, agence } = req.body;
@@ -90,7 +86,6 @@ exports.updateProfile = async (req, res) => {
             return res.status(404).json({ error: "Utilisateur non trouvé" });
         }
 
-        // Mise à jour des champs si fournis
         if (nom) user.nom = nom;
         if (email) user.email = email;
         if (telephone) user.telephone = telephone;

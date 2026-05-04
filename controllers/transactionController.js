@@ -96,53 +96,78 @@ exports.getHistory = async (req, res) => {
 
 
 // Virement par numéro de téléphone
+const { User, Account, Transaction } = require('../models');
+const sequelize = require('../config/db');
+
 exports.transfer = async (req, res) => {
-    const { telephoneExpediteur, telephoneDestinataire, montant } = req.body;
     const t = await sequelize.transaction();
 
     try {
-        if (montant <= 0) throw new Error("Le montant doit être supérieur à 0");
+        const { expediteurTel, codePin, destinataireTel, montant } = req.body;
 
-        // 1. Trouver les utilisateurs par téléphone
-        const userExp = await User.findOne({ where: { telephone: telephoneExpediteur }, transaction: t });
-        const userDest = await User.findOne({ where: { telephone: telephoneDestinataire }, transaction: t });
+        // 1. Authentification de l'expéditeur (Téléphone + PIN)
+        const sender = await User.findOne({ 
+            where: { telephone: expediteurTel, code_pin: codePin },
+            include: [{ model: Account, as: 'Account' }] 
+        });
 
-        if (!userExp || !userDest) {
-            throw new Error("Expéditeur ou destinataire introuvable");
+        if (!sender) {
+            await t.rollback();
+            return res.status(401).json({ error: "Numéro ou code PIN incorrect." });
         }
 
-        // 2. Trouver les comptes bancaires via les IDs des utilisateurs trouvés
-        const compteExp = await Account.findOne({ where: { userId: userExp.id }, transaction: t });
-        const compteDest = await Account.findOne({ where: { userId: userDest.id }, transaction: t });
+        // 2. Vérification du destinataire
+        const receiver = await User.findOne({ 
+            where: { telephone: destinataireTel },
+            include: [{ model: Account, as: 'Account' }] 
+        });
 
-        if (!compteExp || !compteDest) {
-            throw new Error("L'un des comptes bancaires n'est pas activé");
+        if (!receiver) {
+            await t.rollback();
+            return res.status(404).json({ error: "Le numéro du destinataire n'existe pas." });
         }
 
-        // 3. Vérifier le solde
-        if (parseFloat(compteExp.solde) < montant) {
-            throw new Error("❌ Solde insuffisant");
+        if (expediteurTel === destinataireTel) {
+            await t.rollback();
+            return res.status(400).json({ error: "Impossible de s'envoyer de l'argent à soi-même." });
         }
 
-        // 4. Exécuter le mouvement d'argent
-        await compteExp.update({ solde: parseFloat(compteExp.solde) - montant }, { transaction: t });
-        await compteDest.update({ solde: parseFloat(compteDest.solde) + montant }, { transaction: t });
+        // 3. Vérification du solde
+        const soldeExpediteur = parseFloat(sender.Account.solde);
+        if (soldeExpediteur < parseFloat(montant)) {
+            await t.rollback();
+            return res.status(400).json({ 
+                error: "Solde insuffisant.",
+                solde_restant: `${soldeExpediteur} FCFA` 
+            });
+        }
 
-        // 5. Enregistrer la transaction dans l'historique
+        // 4. Mise à jour atomique des comptes
+        await sender.Account.update({ solde: soldeExpediteur - parseFloat(montant) }, { transaction: t });
+        await receiver.Account.update({ solde: parseFloat(receiver.Account.solde) + parseFloat(montant) }, { transaction: t });
+
+        // 5. Enregistrement de l'historique
         await Transaction.create({
-            expediteurId: userExp.id,
-            destinataireId: userDest.id,
-            montant,
             type: 'VIREMENT',
-            statut: 'SUCCES'
+            montant: montant,
+            expediteur_tel: expediteurTel,
+            destinataire_tel: destinataireTel,
+            status: 'SUCCESS'
         }, { transaction: t });
 
+        // Confirmation de toutes les étapes
         await t.commit();
-        res.json({ message: "✅ Virement réussi de " + montant + " FCFA vers " + userDest.nom });
+
+        res.json({
+            message: "Virement réussi !",
+            envoye_a: receiver.nom,
+            montant_envoye: `${montant} FCFA`,
+            votre_solde_restant: `${sender.Account.solde} FCFA`
+        });
 
     } catch (error) {
-        await t.rollback();
-        res.status(400).json({ error: error.message });
+        if (t) await t.rollback();
+        res.status(500).json({ error: "Erreur technique : " + error.message });
     }
 };
 

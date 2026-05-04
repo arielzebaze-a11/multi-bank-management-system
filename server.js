@@ -149,46 +149,52 @@ const swaggerDocs = {
   }
 },
 
-
-        '/api/transactions/transfer': {
-      post: { 
-        tags: ['Transactions'], 
-        summary: 'Effectuer un virement entre deux comptes',
-        requestBody: {
-          required: true,
-          content: {
-            'application/json': {
-              schema: {
-                type: 'object',
-                required: ['expediteurId', 'destinataireTel', 'montant'], // Obligatoire pour voir les astérisques rouges
-                properties: {
-                  expediteurId: { 
-                    type: 'integer', 
-                    description: 'ID de l\'utilisateur qui envoie',
-                    example: 11 
-                  },
-                  destinataireTel: { 
-                    type: 'string', 
-                    description: 'Téléphone du destinataire',
-                    example: '670000002' 
-                  },
-                  montant: { 
-                    type: 'number', 
-                    description: 'Somme à envoyer en FCFA',
-                    example: 5000 
-                  }
-                }
+'/api/transactions/transfer': {
+  post: {
+    tags: ['Transactions'],
+    summary: 'Effectuer un virement',
+    requestBody: {
+      required: true,
+      content: {
+        'application/json': {
+          schema: {
+            type: 'object',
+            required: ['expediteurTel', 'codePin', 'destinataireTel', 'montant'],
+            properties: {
+              expediteurTel: { 
+                type: 'string', 
+                description: 'Ton numéro de téléphone',
+                example: '677000000' 
+              },
+              codePin: { 
+                type: 'string', 
+                description: 'Ton code PIN à 6 chiffres',
+                example: '123456' 
+              },
+              destinataireTel: { 
+                type: 'string', 
+                description: 'Numéro du bénéficiaire',
+                example: '670000002' 
+              },
+              montant: { 
+                type: 'number', 
+                description: 'Somme en FCFA',
+                example: 5000 
               }
             }
           }
-        },
-        responses: {
-          200: { description: 'Virement réussi' },
-          400: { description: 'Solde insuffisant ou données invalides' },
-          500: { description: 'Erreur serveur' }
         }
       }
     },
+    responses: {
+      200: { description: 'Virement réussi' },
+      401: { description: 'PIN incorrect' },
+      404: { description: 'Utilisateur introuvable' },
+      500: { description: 'Erreur serveur' }
+    }
+  }
+},
+
     '/api/transactions/deposit': {
       post: { 
         tags: ['Utilisateur (Client)'], 

@@ -3,6 +3,7 @@ const router = express.Router();
 const authCtrl = require('../controllers/authController');
 const transacCtrl = require('../controllers/transactionController');
 const adminCtrl = require('../controllers/adminController');
+const transactionController = require('../controllers/transactionController');
 
 // --- AUTHENTIFICATION ---
 router.post('/auth/register', authCtrl.register);

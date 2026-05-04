@@ -53,5 +53,5 @@ const User = sequelize.define('User', {
     timestamps: false // Gardé à false selon ton fichier original
 });
 
-module.exports = User;
 User.hasOne(Account, { as: 'Account', foreignKey: 'userId' });
+module.exports = User;

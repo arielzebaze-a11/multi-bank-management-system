@@ -11,7 +11,7 @@ router.post('/auth/login', authCtrl.login);
 router.put('/user/update', authCtrl.updateProfile);
 
 // --- UTILISATEUR (CLIENT) ---
-router.get('/account/balance/:telephone', transactionController.getBalanceByPhone);
+router.post('/account/balance', accountController.getBalance);
 router.get('/transactions/history/:userId', transacCtrl.getHistory);
 router.post('/transactions/transfer', transacCtrl.transfer);
 router.post('/transactions/deposit', transacCtrl.deposit);

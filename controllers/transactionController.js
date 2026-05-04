@@ -4,29 +4,41 @@ const Transaction = require('../models/Transaction');
 const sequelize = require('../config/db');
 
 // Consulter le solde via le numéro de téléphone
-exports.getBalanceByPhone = async (req, res) => {
-    try {
-        const { telephone } = req.params;
+const Account = require('../models/Account');
+const User = require('../models/User');
 
-        // 1. Trouver l'utilisateur par son téléphone
-        const user = await User.findOne({ where: { telephone } });
-        
+exports.getBalance = async (req, res) => {
+    try {
+        const { telephone, code_pin } = req.body;
+
+        // 1. On vérifie d'abord si l'utilisateur existe avec ce téléphone et ce PIN
+        const user = await User.findOne({ 
+            where: { telephone, code_pin } 
+        });
+
         if (!user) {
-            return res.status(404).json({ error: "Utilisateur non trouvé avec ce numéro" });
+            return res.status(401).json({ 
+                error: "Accès refusé. Téléphone ou Code PIN incorrect." 
+            });
         }
 
-        // 2. Trouver le compte associé à cet utilisateur
-        const account = await Account.findOne({ where: { userId: user.id } });
+        // 2. Si l'utilisateur est bon, on cherche son compte bancaire
+        const account = await Account.findOne({ 
+            where: { userId: user.id } 
+        });
 
         if (!account) {
-            return res.status(404).json({ error: "Compte bancaire non activé pour cet utilisateur" });
+            return res.status(404).json({ error: "Compte bancaire introuvable." });
         }
 
+        // 3. On renvoie le solde
         res.json({
-            client: user.nom,
+            nom: user.nom,
             telephone: user.telephone,
-            solde: account.solde
+            solde: account.solde,
+            devise: "XAF" // Ou ta devise par défaut
         });
+
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

@@ -47,6 +47,7 @@ const swaggerDocs = {
     responses: { 201: { description: 'Utilisateur créé' } }
   }
 },
+
 '/api/auth/login': {
   post: {
     tags: ['Authentification'],
@@ -75,6 +76,43 @@ const swaggerDocs = {
     401: { description: 'Identifiants incorrects' } }
   }
 },
+
+'/api/user/update': {
+    put: {
+      tags: ['Authentification'],
+      summary: 'Mettre à jour le profil',
+      requestBody: {
+        required: true,
+        content: { 'application/json': { schema: { /* tes champs ici */ } } }
+      },
+      responses: { 200: { description: 'Mis à jour' } }
+    }
+  },
+
+  // AJOUTE CELLE-CI POUR LE SOLDE
+  '/api/account/balance': {
+    post: {
+      tags: ['Utilisateur (CLIENT)'],
+      summary: 'Consulter mon solde',
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                telephone: { type: 'string', example: '670000101' },
+                code_pin: { type: 'string', example: '123456' }
+              }
+            }
+          }
+        }
+      },
+      responses: { 200: { description: 'Succès' } }
+    }
+},
+
+
         // --- UTILISATEUR (CLIENT) ---
         '/api/account/balance/{userId}': {
           get: { 

@@ -8,7 +8,7 @@ const transactionController = require('../controllers/transactionController');
 // --- AUTHENTIFICATION ---
 router.post('/auth/register', authCtrl.register);
 router.post('/auth/login', authCtrl.login);
-router.put('/user/update', authCtrl.updateProfile);
+router.post('/account/balance', transacCtrl.getBalance);
 
 // --- UTILISATEUR (CLIENT) ---
 router.post('/account/balance', accountController.getBalance);

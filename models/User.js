@@ -14,25 +14,43 @@ const User = sequelize.define('User', {
     email: {
         type: DataTypes.STRING,
         unique: true,
-        allowNull: false
+        allowNull: false,
+        validate: {
+            isEmail: { msg: "L'adresse email doit être valide." } // Validation de format email
+        }
     },
     telephone: {
         type: DataTypes.STRING,
         unique: true,
         allowNull: false
     },
-    mot_de_passe: {
+    code_pin: { // Remplace mot_de_passe
         type: DataTypes.STRING,
-        allowNull: false
+        allowNull: false,
+        validate: {
+            isNumeric: { msg: "Le code PIN doit contenir uniquement des chiffres." },
+            len: {
+                args: [6, 6],
+                msg: "Le code PIN doit comporter exactement 6 chiffres."
+            }
+        }
     },
     role: {
         type: DataTypes.STRING,
         defaultValue: 'CLIENT'
-    }
-}, {
+    },
+
+    agence: {
+        type: DataTypes.STRING,
+        defaultValue: 'Siège',
+        allowNull: false
+  }
+  
+}, 
+
+{
     tableName: 'users',
-    // ⬇️ C'EST CETTE LIGNE QUI RÈGLE TON ERREUR ⬇️
-    timestamps: false 
+    timestamps: false // Gardé à false selon ton fichier original
 });
 
 module.exports = User;

@@ -36,7 +36,9 @@ const swaggerDocs = {
               nom: { type: 'string', example: 'Ariel' },
               email: { type: 'string', example: 'ariel@example.com' },
               telephone: { type: 'string', example: '677000000' },
-              mot_de_passe: { type: 'string', example: 'password123' }
+              // Remplace 'mot_de_passe' par 'code_pin' ici :
+              code_pin: { type: 'string', example: '123456' },
+              agence: { type: 'string', example: 'Bastos' }
             }
           }
         }
@@ -56,8 +58,14 @@ const swaggerDocs = {
           schema: {
             type: 'object',
             properties: {
-              email: { type: 'string', example: 'ariel@example.com' },
-              mot_de_passe: { type: 'string', example: 'password123' }
+              // Remplace email par telephone
+              telephone: { 
+                type: 'string', 
+                example: '677000000' 
+              },
+              // Remplace mot_de_passe par code_pin
+              code_pin: { type: 'string', example: '123456' },
+              agence: { type: 'string', example: 'Bastos' }
             }
           }
         }
@@ -65,8 +73,7 @@ const swaggerDocs = {
     },
     responses: { 200: { description: 'Connecté' } }
   }
-    },
-
+},
         // --- UTILISATEUR (CLIENT) ---
         '/api/account/balance/{userId}': {
           get: { 
@@ -361,3 +368,4 @@ async function startServer() {
 }
 
 startServer();
+

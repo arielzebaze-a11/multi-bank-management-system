@@ -427,10 +427,5 @@ async function startServer() {
     }
 }
 
-// Capture les routes inexistantes et renvoie du JSON au lieu du HTML
-app.use((req, res) => {
-    res.status(404).json({ error: "Route inexistante", message: "Le chemin demandé n'existe pas." });
-});
-
 startServer();
 

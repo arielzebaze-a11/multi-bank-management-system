@@ -149,6 +149,26 @@ const swaggerDocs = {
   }
 },
 
+'/api/transactions/verify-receiver/{telephone}': {
+  get: {
+    tags: ['Transactions'],
+    summary: 'Vérifier le nom du destinataire avant virement',
+    parameters: [
+      {
+        name: 'telephone',
+        in: 'path',
+        required: true,
+        schema: { type: 'string' },
+        description: 'Le numéro de téléphone du destinataire'
+      }
+    ],
+    responses: {
+      200: { description: 'Utilisateur trouvé' },
+      404: { description: 'Numéro inconnu' }
+    }
+  }
+},
+
 '/api/transactions/transfer': {
   post: {
     tags: ['Transactions'],
@@ -161,26 +181,15 @@ const swaggerDocs = {
             type: 'object',
             required: ['expediteurTel', 'codePin', 'destinataireTel', 'montant'],
             properties: {
-              expediteurTel: { 
+              expediteurTel: { type: 'string', example: '677000000' },
+              codePin: { type: 'string', example: '123456' },
+              destinataireTel: { type: 'string', example: '670000002' },
+              nomConfirme: { 
                 type: 'string', 
-                description: 'Ton numéro de téléphone',
-                example: '677000000' 
+                description: 'Le nom récupéré via verify-receiver',
+                example: 'Ariel' 
               },
-              codePin: { 
-                type: 'string', 
-                description: 'Ton code PIN à 6 chiffres',
-                example: '123456' 
-              },
-              destinataireTel: { 
-                type: 'string', 
-                description: 'Numéro du bénéficiaire',
-                example: '670000002' 
-              },
-              montant: { 
-                type: 'number', 
-                description: 'Somme en FCFA',
-                example: 5000 
-              }
+              montant: { type: 'number', example: 5000 }
             }
           }
         }
@@ -188,30 +197,38 @@ const swaggerDocs = {
     },
     responses: {
       200: { description: 'Virement réussi' },
-      401: { description: 'PIN incorrect' },
-      404: { description: 'Utilisateur introuvable' },
-      500: { description: 'Erreur serveur' }
+      400: { description: 'Erreur de nom ou solde insuffisant' },
+      401: { description: 'PIN incorrect' }
     }
   }
 },
 
-    '/api/transactions/deposit': {
-      post: { 
-        tags: ['Utilisateur (Client)'], 
-        summary: 'Déposer de l\'argent',
-        requestBody: {
-          required: true,
-          content: { 'application/json': { schema: {
+'/api/transactions/dépôt': {
+  post: {
+    tags: ['Transactions'],
+    summary: 'Déposer de l\'argent',
+    requestBody: {
+      required: true,
+      content: {
+        'application/json': {
+          schema: {
             type: 'object',
+            required: ['telephone', 'montant'],
             properties: {
-              userId: { type: 'integer', example: 1 },
-              montant: { type: 'number', example: 5000 }
+              telephone: { type: 'string', example: '677000000' },
+              montant: { type: 'number', example: 10000 }
             }
-          }}}
-        },
-        responses: { 200: { description: 'Dépôt réussi' } } 
+          }
+        }
       }
     },
+    responses: {
+      200: { description: 'Dépôt réussi' },
+      404: { description: 'Utilisateur non trouvé' }
+    }
+  }
+},
+
     '/api/transactions/withdraw': {
       post: { 
         tags: ['Utilisateur (Client)'], 
@@ -229,6 +246,7 @@ const swaggerDocs = {
         responses: { 200: { description: 'Retrait réussi' } } 
       }
     },
+
     '/api/account/rib/{userId}': {
       get: { 
         tags: ['Utilisateur (Client)'], 
@@ -237,6 +255,7 @@ const swaggerDocs = {
         responses: { 200: { description: 'OK' } } 
       }
     },
+    
     '/api/account/close': {
       delete: { 
         tags: ['Utilisateur (Client)'], 

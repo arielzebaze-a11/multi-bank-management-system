@@ -103,6 +103,17 @@ const swaggerDocs = {
       }
     },
 
+    //UTILISATEUR (CLIENT)
+
+    '/api/transactions/verify-receiver/{telephone}': {
+     get: { 
+          tags: ['Utilisateur (Client)'], 
+          summary: '0 - Vérifier le nom du destinataire',
+          parameters: [{ in: 'path', name: 'telephone', required: true, schema: { type: 'string' } }],
+          responses: { 200: { description: 'Nom trouvé' } } 
+        }
+      },
+
     '/api/account/balance': {
       post: {
         tags: ['Utilisateur (Client)'],
@@ -149,25 +160,6 @@ const swaggerDocs = {
       }
     },
 
-    '/api/transactions/verify-receiver/{telephone}': {
-      get: {
-        tags: ['Transactions'],
-        summary: 'Vérifier le nom du destinataire avant virement',
-        parameters: [
-          {
-            name: 'telephone',
-            in: 'path',
-            required: true,
-            schema: { type: 'string' },
-            description: 'Le numéro de téléphone du destinataire'
-          }
-        ],
-        responses: {
-          200: { description: 'Utilisateur trouvé' },
-          404: { description: 'Numéro inconnu' }
-        }
-      }
-    },
 
     '/api/transactions/transfer': {
       post: {
@@ -225,6 +217,7 @@ const swaggerDocs = {
         responses: {
           200: { description: 'Dépôt réussi' },
           404: { description: 'Utilisateur non trouvé' }
+          
         }
       }
     },
@@ -232,18 +225,19 @@ const swaggerDocs = {
     '/api/transactions/withdraw': {
       post: { 
         tags: ['Utilisateur (Client)'], 
-        summary: 'Retirer de l\'argent',
+        summary: 'Effectuer un retrait',
         requestBody: {
           required: true,
           content: { 'application/json': { schema: {
             type: 'object',
             properties: {
-              userId: { type: 'integer', example: 1 },
-              montant: { type: 'number', example: 2000 }
+              telephone: { type: 'string' },
+              codePin: { type: 'string' },
+              montant: { type: 'number' }
             }
           }}}
         },
-        responses: { 200: { description: 'Retrait réussi' } } 
+        responses: { 200: { description: 'Retrait réussi' } }
       }
     },
 
@@ -259,28 +253,50 @@ const swaggerDocs = {
     '/api/account/close': {
       delete: { 
         tags: ['Utilisateur (Client)'], 
-        summary: 'Clôturer le compte',
+        summary: '7 - Clôturer le compte',
         requestBody: {
           required: true,
           content: { 'application/json': { schema: {
             type: 'object',
+            required: ['telephone', 'codePin'],
             properties: {
-              userId: { type: 'integer', example: 1 },
-              mot_de_passe: { type: 'string', example: 'password123' }
+              telephone: { type: 'string' },
+              codePin: { type: 'string' }
             }
           }}}
         },
-        responses: { 200: { description: 'Compte clôturé' } } 
+        responses: { 200: { description: 'Compte clôturé' } }
       }
     },
-    '/api/transactions/history/{userId}': {
-      get: { 
-        tags: ['Utilisateur (Client)'], 
-        summary: 'Historique des transactions',
-        parameters: [{ in: 'path', name: 'userId', required: true, schema: { type: 'integer' } }],
-        responses: { 200: { description: 'OK' } } 
-      }
-    },
+
+    // '/api/transactions/history/{userId}': {
+    //   get: { 
+    //     tags: ['Utilisateur (Client)'], 
+    //     summary: 'Historique des transactions',
+    //     parameters: [{ in: 'path', name: 'userId', required: true, schema: { type: 'integer' } }],
+    //     responses: { 200: { description: 'OK' } } 
+    //   }
+    // },
+    // '/api/transactions/transfer': {
+    //   post: { tags: ['Utilisateur (Client)'], summary: 'Effectuer un virement', responses: { 200: { description: 'OK' } } }
+    // },
+    // '/api/transactions/deposit': {
+    //   post: { tags: ['Utilisateur (Client)'], summary: 'Déposer de l\'argent', responses: { 200: { description: 'OK' } } }
+    // },
+    // '/api/transactions/withdraw': {
+    //   post: { tags: ['Utilisateur (Client)'], summary: 'Retirer de l\'argent', responses: { 200: { description: 'OK' } } }
+    // },
+    // '/api/account/rib/{userId}': {
+    //   get: { 
+    //     tags: ['Utilisateur (Client)'], 
+    //     summary: 'Télécharger RIB (PDF)', 
+    //     parameters: [{ in: 'path', name: 'userId', required: true, schema: { type: 'integer' } }],
+    //     responses: { 200: { description: 'OK' } } 
+    //   }
+    // },
+    // '/api/account/close': {
+    //   delete: { tags: ['Utilisateur (Client)'], summary: 'Clôturer le compte', responses: { 200: { description: 'OK' } } }
+    // },
 
     // --- ADMINISTRATION ---
     '/api/admin/users': {

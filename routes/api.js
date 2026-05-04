@@ -11,6 +11,7 @@ router.put('/user/update', authCtrl.updateProfile); // Ajouté pour Swagger
 
 // --- UTILISATEUR (CLIENT) ---
 // Utilise transacCtrl au lieu de accountController
+router.get('/transactions/verify-receiver/:telephone', transactionController.verifyReceiver);
 router.post('/account/balance', transacCtrl.getBalance); 
 router.post('/transactions/history', transacCtrl.getHistory);
 router.post('/transactions/transfer', transacCtrl.transfer);

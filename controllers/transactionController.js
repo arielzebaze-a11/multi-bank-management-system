@@ -99,33 +99,36 @@ exports.verifyReceiver = async (req, res) => {
     try {
         const { telephone } = req.params;
 
-        // 1. Vérification du format (Exemple simple : doit être un chiffre)
-        if (!/^\d+$/.test(telephone)) {
+        // 1. Validation de base
+        if (!telephone || telephone.length < 9) {
             return res.status(400).json({ 
-                error: "Numéro invalide", 
-                message: "Le numéro de téléphone ne doit contenir que des chiffres." 
+                error: "Format incorrect", 
+                message: "Le numéro est trop court ou invalide." 
             });
         }
 
-        // 2. Recherche de l'utilisateur
         const user = await User.findOne({ where: { telephone } });
 
+        // 2. Erreur 404 propre en JSON
         if (!user) {
             return res.status(404).json({ 
                 error: "Compte non trouvé", 
-                message: "Aucun utilisateur n'est enregistré avec ce numéro." 
+                message: "Ce numéro n'existe pas dans notre système." 
             });
         }
 
-        // 3. Succès
-        res.json({ 
-            status: "SUCCESS",
+        // 3. Succès 200
+        return res.status(200).json({ 
             nom: user.nom,
-            message: "Destinataire identifié avec succès."
+            message: "Destinataire identifié"
         });
 
     } catch (error) {
-        res.status(500).json({ error: "Erreur technique : " + error.message });
+        // 4. Erreur 500 propre en JSON
+        return res.status(500).json({ 
+            error: "Erreur serveur", 
+            message: error.message 
+        });
     }
 };
 

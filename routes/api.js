@@ -12,7 +12,7 @@ router.put('/user/update', authCtrl.updateProfile); // Ajouté pour Swagger
 // --- UTILISATEUR (CLIENT) ---
 // Utilise transacCtrl au lieu de accountController
 router.post('/account/balance', transacCtrl.getBalance); 
-router.get('/transactions/history/:userId', transacCtrl.getHistory);
+router.post('/transactions/history', transacCtrl.getHistory);
 router.post('/transactions/transfer', transacCtrl.transfer);
 router.post('/transactions/deposit', transacCtrl.deposit);
 router.post('/transactions/withdraw', transacCtrl.withdraw);    

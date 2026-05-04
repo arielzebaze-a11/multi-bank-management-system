@@ -126,14 +126,30 @@ const swaggerDocs = {
   }
 },
 
-        '/api/transactions/history/{userId}': {
-          get: { 
-            tags: ['Utilisateur (Client)'], 
-            summary: 'Historique des transactions',
-            parameters: [{ in: 'path', name: 'userId', required: true, schema: { type: 'integer' }, example: 1 }],
-            responses: { 200: { description: 'OK' } } 
+'/api/transactions/history': {
+  post: {
+    tags: ['Utilisateur (Client)'],
+    summary: 'Historique des transactions (Sécurisé par PIN)',
+    requestBody: {
+      required: true,
+      content: {
+        'application/json': {
+          schema: {
+            type: 'object',
+            required: ['telephone', 'code_pin'],
+            properties: {
+              telephone: { type: 'string', example: '677000000' },
+              code_pin: { type: 'string', example: '123456' }
+            }
           }
-        },
+        }
+      }
+    },
+    responses: { 200: { description: 'Historique récupéré' } }
+  }
+},
+
+
         '/api/transactions/transfer': {
       post: { 
         tags: ['Transactions'], 

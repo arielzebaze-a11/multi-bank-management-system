@@ -2,6 +2,7 @@ const User = require('../models/User');
 const Account = require('../models/Account');
 const Transaction = require('../models/Transaction');
 const sequelize = require('../config/db');
+const { Op } = require('sequelize');
 
 exports.getBalance = async (req, res) => {
     try {
@@ -32,7 +33,7 @@ exports.getBalance = async (req, res) => {
             nom: user.nom,
             telephone: user.telephone,
             solde: account.solde,
-            devise: "XAF" // Ou ta devise par défaut
+            devise: "FCFA"
         });
 
     } catch (error) {
@@ -40,23 +41,59 @@ exports.getBalance = async (req, res) => {
     }
 };
 
-// Historique
+// Historique des transactions
 exports.getHistory = async (req, res) => {
     try {
+        const { telephone, code_pin } = req.body;
+
+        // 1. Authentification stricte
+        const user = await User.findOne({ where: { telephone, code_pin } });
+        if (!user) {
+            return res.status(401).json({ error: "Accès refusé. Téléphone ou Code PIN incorrect." });
+        }
+
+        // 2. Récupération avec les infos du correspondant (Email, Nom, Tel)
         const transactions = await Transaction.findAll({
             where: {
-                [sequelize.Op.or]: [
-                    { expediteur_tel: req.params.userId }, // Simplifié pour le test
-                    { destinataire_tel: req.params.userId }
-                ]
+                [Op.or]: [{ expediteur_tel: telephone }, { destinataire_tel: telephone }]
             },
+            include: [
+                { model: User, as: 'Expediteur', attributes: ['nom', 'email', 'telephone'] },
+                { model: User, as: 'Destinataire', attributes: ['nom', 'email', 'telephone'] }
+            ],
             order: [['createdAt', 'DESC']]
         });
-        res.json(transactions);
+
+        // 3. Formatage selon tes exigences
+        const historique = transactions.map(t => {
+            const isSent = t.expediteur_tel === telephone;
+            const correspondant = isSent ? t.Destinataire : t.Expediteur;
+
+            return {
+                date: t.createdAt,
+                montant: `${t.montant} FCFA`,
+                statut: isSent ? "Argent envoyé" : "Argent reçu",
+                type: t.type,
+                correspondant: {
+                    nom: correspondant ? correspondant.nom : "Système/Inconnu",
+                    email: correspondant ? correspondant.email : "N/A",
+                    telephone: isSent ? t.destinataire_tel : t.expediteur_tel
+                },
+                etat_transaction: t.status // Affiche SUCCESS ou autre
+            };
+        });
+
+        res.json({
+            client: user.nom,
+            devise: "FCFA",
+            transactions: historique
+        });
+
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 };
+
 
 // Virement par numéro de téléphone
 exports.transfer = async (req, res) => {

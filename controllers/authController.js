@@ -2,6 +2,9 @@ const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
+const Account = require('../models/Account');
+const User = require('../models/User');
+
 // CREATE : Inscription d'un utilisateur avec Code PIN
 exports.register = async (req, res) => {
     try {
@@ -16,8 +19,6 @@ exports.register = async (req, res) => {
             agence 
         });
 
-        // 2. Automatisme : Création du compte bancaire lié
-        const { Account } = require('../models'); 
         await Account.create({ 
             userId: newUser.id, 
             solde: 0.00 

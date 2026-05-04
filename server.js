@@ -397,24 +397,24 @@ const swaggerDocs = {
         responses: { 200: { description: 'Solde ajusté' } } 
       }
     },
-    '/api/admin/transactions': {
-      get: { tags: ['Administration'], summary: 'Voir toutes les transactions du système', responses: { 200: { description: 'OK' } } }
-    },
-    '/api/admin/reports/global': {
-      get: { tags: ['Administration'], summary: 'Générer des rapports financiers globaux', responses: { 200: { description: 'OK' } } }
-    },
-    '/api/admin/create-admin': {
-      post: { tags: ['Administration'], summary: 'Créer d\'autres comptes administrateurs', responses: { 201: { description: 'Admin créé' } } }
-    },
-    '/api/admin/settings': {
-      put: { tags: ['Administration'], summary: 'Définir plafonds et frais bancaires', responses: { 200: { description: 'Paramètres mis à jour' } } }
-    },
-    '/api/admin/account/status': {
-      put: { tags: ['Administration'], summary: 'Valider, Activer ou Bloquer un compte', responses: { 200: { description: 'OK' } } }
-    },
-    '/api/admin/account/adjust-balance': {
-      put: { tags: ['Administration'], summary: 'Modifier le solde (Correction)', responses: { 200: { description: 'OK' } } }
-    }
+    // '/api/admin/transactions': {
+    //   get: { tags: ['Administration'], summary: 'Voir toutes les transactions du système', responses: { 200: { description: 'OK' } } }
+    // },
+    // '/api/admin/reports/global': {
+    //   get: { tags: ['Administration'], summary: 'Générer des rapports financiers globaux', responses: { 200: { description: 'OK' } } }
+    // },
+    // '/api/admin/create-admin': {
+    //   post: { tags: ['Administration'], summary: 'Créer d\'autres comptes administrateurs', responses: { 201: { description: 'Admin créé' } } }
+    // },
+    // '/api/admin/settings': {
+    //   put: { tags: ['Administration'], summary: 'Définir plafonds et frais bancaires', responses: { 200: { description: 'Paramètres mis à jour' } } }
+    // },
+    // '/api/admin/account/status': {
+    //   put: { tags: ['Administration'], summary: 'Valider, Activer ou Bloquer un compte', responses: { 200: { description: 'OK' } } }
+    // },
+    // '/api/admin/account/adjust-balance': {
+    //   put: { tags: ['Administration'], summary: 'Modifier le solde (Correction)', responses: { 200: { description: 'OK' } } }
+    // }
   }
 };
 
@@ -436,7 +436,8 @@ async function startServer() {
         console.log('✅ Tables synchronisées avec succès');
         
         const server = app.listen(PORT, '0.0.0.0', () => {
-            console.log(`🚀 Serveur actif sur http://localhost:${PORT}/api-docs`);
+            console.log(`🚀 Serveur actif sur le port ${PORT}`);
+            console.log(`📖 Documentation : http://0.0.0.0:${PORT}/api-docs`);
         });
 
         server.keepAliveTimeout = 60000; 

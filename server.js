@@ -126,7 +126,7 @@ const swaggerDocs = {
       }
     },
 
-    '/api/transactions/balance': {
+    '/api/account/balance': {
       post: {
         tags: ['Utilisateur (Client)'],
         summary: 'Consulter mon solde (Sécurisé par PIN)',

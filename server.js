@@ -105,7 +105,7 @@ const swaggerDocs = {
 
     //UTILISATEUR (CLIENT)
 
-    '/api/transactions/verify-receiver/:telephone': {
+    '/api/transactions/verify-receiver/{telephone}': {
       get: { 
         tags: ['Utilisateur (Client)'], 
         summary: '0 - Vérifier le nom du destinataire',

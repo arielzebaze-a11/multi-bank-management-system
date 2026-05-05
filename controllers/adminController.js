@@ -36,8 +36,10 @@ exports.getAllTransactions = async (req, res) => {
 exports.adjustBalance = async (req, res) => {
     try {
         const { userId, nouveauSolde } = req.body;
-        const account = await Account.findOne({ where: { user_id: userId } });
+        const account = await Account.findOne({ where: { userId: userId } }); 
+        
         if (!account) return res.status(404).json({ error: "Compte non trouvé" });
+        
         account.solde = nouveauSolde;
         await account.save();
         res.json({ message: "Solde mis à jour", nouveau_solde: account.solde });
@@ -102,40 +104,40 @@ exports.getGlobalReport = async (req, res) => {
             solde: u.Account?.solde || 0,
             etat: u.Account?.statut || 'N/A'
         })),
-        DERNIERES_TRANSACTIONS: allTransac.slice(0, 10) // Les 10 plus récentes
+        DERNIERES_TRANSACTIONS: allTransac
     };
 
     res.json(rendu);
 };
 
-exports.getGlobalReport = async (req, res) => {
-    const allUsers = await User.findAll({ include: [{ model: Account, as: 'Account' }] });
-    const allTransac = await Transaction.findAll();
+// exports.getGlobalReport = async (req, res) => {
+//     const allUsers = await User.findAll({ include: [{ model: Account, as: 'Account' }] });
+//     const allTransac = await Transaction.findAll();
 
-    const rendu = {
-        SYNTHESE_SYSTEME: {
-            total_clients: allUsers.length,
-            liquidite_totale: allUsers.reduce((sum, u) => sum + parseFloat(u.Account?.solde || 0), 0) + " FCFA",
-            volume_transactions: allTransac.length
-        },
-        ETAT_DES_COMPTES: {
-            actifs: allUsers.filter(u => u.Account?.statut === 'ACTIF').length,
-            bloques: allUsers.filter(u => u.Account?.statut === 'BLOQUE').length,
-            supprimes: allUsers.filter(u => u.Account?.statut === 'SUPPRIME').length
-        },
-        LISTE_DETAILLEE_CLIENTS: allUsers.map(u => ({
-            id: u.id,
-            nom: u.nom,
-            tel: u.telephone,
-            agence: u.agence,
-            solde: u.Account?.solde || 0,
-            etat: u.Account?.statut || 'N/A'
-        })),
-        DERNIERES_TRANSACTIONS: allTransac.slice(0, 10) // Les 10 plus récentes
-    };
+//     const rendu = {
+//         SYNTHESE_SYSTEME: {
+//             total_clients: allUsers.length,
+//             liquidite_totale: allUsers.reduce((sum, u) => sum + parseFloat(u.Account?.solde || 0), 0) + " FCFA",
+//             volume_transactions: allTransac.length
+//         },
+//         ETAT_DES_COMPTES: {
+//             actifs: allUsers.filter(u => u.Account?.statut === 'ACTIF').length,
+//             bloques: allUsers.filter(u => u.Account?.statut === 'BLOQUE').length,
+//             supprimes: allUsers.filter(u => u.Account?.statut === 'SUPPRIME').length
+//         },
+//         LISTE_DETAILLEE_CLIENTS: allUsers.map(u => ({
+//             id: u.id,
+//             nom: u.nom,
+//             tel: u.telephone,
+//             agence: u.agence,
+//             solde: u.Account?.solde || 0,
+//             etat: u.Account?.statut || 'N/A'
+//         })),
+//         DERNIERES_TRANSACTIONS: allTransac.slice(0, 10) // Les 10 plus récentes
+//     };
 
-    res.json(rendu);
-};
+//     res.json(rendu);
+// };
 
 // 9. Créer admin
 exports.createAdmin = async (req, res) => {

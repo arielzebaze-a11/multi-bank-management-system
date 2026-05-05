@@ -42,7 +42,7 @@ const Transaction = sequelize.define('Transaction', {
 }, {
     tableName: 'transactions',
     timestamps: true,
-    underscored: true
+    underscored: false
 });
 
 // Relations

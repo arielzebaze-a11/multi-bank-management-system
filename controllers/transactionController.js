@@ -4,6 +4,7 @@ const Transaction = require('../models/Transaction');
 const sequelize = require('../config/db');
 const { Op } = require('sequelize');
 const PDFDocument = require('pdfkit'); // Pour générer le PDF du RIB
+const MAX_SOLDE_AUTORISE = 1_000_000_000;
 
 exports.getBalance = async (req, res) => {
     try {
@@ -11,8 +12,17 @@ exports.getBalance = async (req, res) => {
 
         // 1. On vérifie d'abord si l'utilisateur existe avec ce téléphone et ce PIN
         const user = await User.findOne({ 
-            where: { telephone, code_pin } 
+            where: { telephone, code_pin },
+            include: [{ model: Account, as: 'Account' }]
         });
+        
+        // LA BARRIÈRE CRITIQUE
+        if (!user || !user.Account || user.Account.statut !== 'ACTIF') {
+            return res.status(403).json({ 
+                error: "Accès interdit", 
+                message: "Ce compte n'est plus actif (Bloqué ou Supprimé). Contactez l'administrateur." 
+            });
+        }
 
         if (!user) {
             return res.status(401).json({ 
@@ -48,9 +58,18 @@ exports.getHistory = async (req, res) => {
         const { telephone, code_pin } = req.body;
 
         // 1. Authentification stricte
-        const user = await User.findOne({ where: { telephone, code_pin } });
+        const user = await User.findOne({ where: { telephone, code_pin },
+        include: [{ model: Account, as: 'Account' }]});
         if (!user) {
             return res.status(401).json({ error: "Accès refusé. Téléphone ou Code PIN incorrect." });
+        }
+
+        // LA BARRIÈRE CRITIQUE
+        if (!user || !user.Account || user.Account.statut !== 'ACTIF') {
+            return res.status(403).json({ 
+                error: "Accès interdit", 
+                message: "Ce compte n'est plus actif (Bloqué ou Supprimé). Contactez l'administrateur." 
+            });
         }
 
         // 2. Récupération avec les infos du correspondant (Email, Nom, Tel)
@@ -108,13 +127,25 @@ exports.verifyReceiver = async (req, res) => {
             });
         }
 
-        const user = await User.findOne({ where: { telephone } });
+        // AJOUT DE L'INCLUDE ICI
+        const user = await User.findOne({ 
+            where: { telephone },
+            include: [{ model: Account, as: 'Account' }] 
+        });
 
-        // 2. Erreur 404 propre en JSON
+        // 2. Erreur 404 propre
         if (!user) {
             return res.status(404).json({ 
                 error: "Compte non trouvé", 
                 message: "Ce numéro n'existe pas dans notre système." 
+            });
+        }
+
+        // 3. LA BARRIÈRE CRITIQUE (Maintenant user.Account existe)
+        if (user.Account.statut !== 'ACTIF') {
+            return res.status(403).json({ 
+                error: "Accès interdit", 
+                message: "Le compte du destinataire est bloqué ou inactif." 
             });
         }
 
@@ -145,6 +176,15 @@ exports.transfer = async (req, res) => {
             where: { telephone: expediteurTel, code_pin: codePin },
             include: [{ model: Account, as: 'Account' }] 
         });
+
+        // 2. LA BARRIÈRE CRITIQUE (Corrigée avec 'sender')
+        if (!sender || !sender.Account || sender.Account.statut !== 'ACTIF') {
+            await t.rollback();
+            return res.status(403).json({ 
+                error: "Accès interdit", 
+                message: "Votre compte est inactif ou vos identifiants sont incorrects." 
+            });
+        }
 
         if (!sender) {
             await t.rollback();
@@ -218,10 +258,30 @@ exports.deposit = async (req, res) => {
             include: [{ model: Account, as: 'Account' }] 
         });
 
+        // Correction ligne 254 de transactionController.js
+        if (!receiver || !receiver.Account || receiver.Account.statut !== 'ACTIF') {
+            return res.status(403).json({ 
+                error: "Accès interdit", 
+                message: "Ce compte n'est plus actif." 
+            });
+        }
+        
         if (!receiver) {
             await t.rollback();
             return res.status(404).json({ error: "Aucun compte trouvé pour ce numéro." });
         }
+
+        if (futurSolde > MAX_SOLDE_AUTORISE) {
+            return res.status(400).json({ 
+                error: "Limite de solde atteinte",
+                message: `Le solde total ne peut pas dépasser ${MAX_SOLDE_AUTORISE.toLocaleString()} FCFA. Veuillez effectuer un dépôt plus petit ou retirer des fonds.`
+            });
+        }
+        // ----------------------------------
+
+        // Si tout est bon, on procède au dépôt...
+        account.solde = futurSolde;
+        await account.save();
 
         // 2. Mise à jour du solde
         const nouveauSolde = parseFloat(receiver.Account.solde) + parseFloat(montant);
@@ -250,41 +310,69 @@ exports.deposit = async (req, res) => {
     }
 };
 
-// --- RETRAIT  ---
+// --- RETRAIT ---
 exports.withdraw = async (req, res) => {
-    try {
-        const { telephone, codePin, montant } = req.body; // Changé userId -> telephone/codePin
+    // Utilisation d'une transaction pour garantir l'atomicité
+    const t = await sequelize.transaction(); 
 
-        // 1. Authentification
-        const user = await User.findOne({ 
+    try {
+        const { telephone, codePin, montant } = req.body;
+
+        // 1. Authentification avec verrouillage de ligne (lock)
+        const user = await User.findOne({
             where: { telephone, code_pin: codePin },
-            include: [{ model: Account, as: 'Account' }] 
+            include: [{ model: Account, as: 'Account' }],
+            transaction: t,
+            lock: t.LOCK.UPDATE // Empêche d'autres transactions de lire ce solde en même temps
         });
 
         if (!user) {
+            await t.rollback();
             return res.status(401).json({ error: "❌ Téléphone ou code PIN incorrect" });
+        }
+
+        // LA BARRIÈRE CRITIQUE
+        if (user.Account.statut !== 'ACTIF') {
+            await t.rollback();
+            return res.status(403).json({
+                error: "Accès interdit",
+                message: "Ce compte n'est plus actif. Contactez l'administrateur."
+            });
         }
 
         // 2. Vérification solde
         const account = user.Account;
-        if (parseFloat(account.solde) < parseFloat(montant)) {
+        const montantRetrait = parseFloat(montant);
+        const soldeActuel = parseFloat(account.solde);
+
+        if (soldeActuel < montantRetrait) {
+            await t.rollback();
             return res.status(400).json({ error: "❌ Solde insuffisant" });
         }
 
-        // 3. Mise à jour
-        account.solde = parseFloat(account.solde) - parseFloat(montant);
-        await account.save();
+        // 3. Mise à jour sécurisée
+        account.solde = soldeActuel - montantRetrait;
+        await account.save({ transaction: t });
 
-        // 4. Historique
+        // 4. Historique[cite: 4]
         await Transaction.create({
             type: 'RETRAIT',
-            montant: montant,
+            montant: montantRetrait,
             expediteur_tel: telephone,
             status: 'SUCCESS'
+        }, { transaction: t });
+
+        // Validation de toutes les étapes[cite: 1]
+        await t.commit();
+
+        res.json({ 
+            message: "✅ Retrait réussi", 
+            nouveau_solde: `${account.solde} FCFA` 
         });
 
-        res.json({ message: "✅ Retrait réussi", nouveau_solde: `${account.solde} FCFA` });
     } catch (error) {
+        // En cas d'erreur, on annule tout[cite: 1]
+        if (t) await t.rollback();
         res.status(500).json({ error: error.message });
     }
 };
@@ -294,11 +382,19 @@ exports.getRIB = async (req, res) => {
     try {
         const { telephone, code_pin } = req.body;
 
-        // 1. Vérification sécurité
+       // 1. Vérification sécurité et récupération des données du compte
         const user = await User.findOne({ 
             where: { telephone, code_pin },
             include: [{ model: Account, as: 'Account' }] 
         });
+
+        // LA BARRIÈRE CRITIQUE (Gère l'absence d'utilisateur ET le statut)
+        if (!user || !user.Account || user.Account.statut !== 'ACTIF') {
+            return res.status(403).json({ 
+                error: "Accès interdit", 
+                message: "Identifiants incorrects ou compte inactif. Contactez l'administrateur." 
+            });
+        }
 
         if (!user) return res.status(401).json({ error: "PIN incorrect" });
 
@@ -331,14 +427,33 @@ exports.getRIB = async (req, res) => {
 exports.closeAccount = async (req, res) => {
     try {
         const { telephone, codePin } = req.body;
-        const user = await User.findOne({ where: { telephone, code_pin: codePin } });
-        
-        if (!user) return res.status(401).json({ error: "Identifiants incorrects" });
 
-        // On ne supprime plus, on marque comme SUPPRIME
-        await Account.update({ statut: 'SUPPRIME' }, { where: { userId: user.id } });
-        
-        res.json({ message: "⚠️ Compte clôturé (archivé) avec succès." });
+        // 1. Authentification ET récupération du compte
+        const user = await User.findOne({ 
+            where: { telephone, code_pin: codePin },
+            include: [{ model: Account, as: 'Account' }] 
+        });
+
+        // 2. LA BARRIÈRE CRITIQUE
+        // On vérifie si l'utilisateur existe et si son compte est déjà actif
+        if (!user || !user.Account || user.Account.statut !== 'ACTIF') {
+            return res.status(403).json({ 
+                error: "Accès interdit", 
+                message: "Identifiants incorrects ou compte déjà inactif/clôturé." 
+            });
+        }
+
+        // 3. Changement de statut (Soft Delete)[cite: 4]
+        // Utilise 'BLOQUE' ou 'SUPPRIME' selon ta logique métier
+        await Account.update(
+            { statut: 'SUPPRIME' }, 
+            { where: { userId: user.id } }
+        );
+
+        res.json({ 
+            message: "⚠️ Compte clôturé (archivé) avec succès." 
+        });
+
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

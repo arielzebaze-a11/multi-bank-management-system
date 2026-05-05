@@ -8,8 +8,12 @@ const Account = sequelize.define('Account', {
         autoIncrement: true
     },
     solde: {
-        type: DataTypes.DECIMAL(15, 2),
-        defaultValue: 0.00
+        type: DataTypes.DECIMAL(20, 2), // Évite les débordements de type FLOAT
+        allowNull: false,
+        validate: {
+            max: 1000000000, // Sécurité au niveau de la base de données
+            min: 0
+        }
     },
     userId: { 
         type: DataTypes.INTEGER,

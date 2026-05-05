@@ -373,40 +373,46 @@ const swaggerDocs = {
         responses: { 200: { description: 'Paramètres mis à jour' } } 
       }
     },
-    '/api/admin/compte/statut': {
-      put: { 
-        tags: ['Administration'], 
-        summary: 'Valider/Bloquer un compte',
-        requestBody: {
-          required: true,
-          content: { 'application/json': { schema: {
-            type: 'object',
-            properties: {
-              userId: { type: 'integer', example: 1 },
-              statut: { type: 'string', enum: ['ACTIF', 'BLOQUE', 'EN_ATTENTE'], example: 'BLOQUE' }
-            }
-          }}}
-        },
-        responses: { 200: { description: 'Statut mis à jour' } } 
-      }
+    // Remplace le bloc '/api/admin/compte/statut' par celui-ci[cite: 10]
+// Dans server.js, sous l'objet "paths"
+'/api/admin/compte/statut': { // <-- Doit être identique à la route api.js
+  put: { 
+    tags: ['Administration'], 
+    summary: 'Bloquer ou Débloquer un compte',
+    requestBody: {
+      required: true,
+      content: { 'application/json': { schema: {
+        type: 'object',
+        properties: {
+          userId: { type: 'integer', example: 1 },
+          action: { type: 'string', enum: ['BLOQUER', 'DEBLOQUER'], example: 'BLOQUER' }
+        }
+      }}}
     },
-    '/api/admin/compte/ajuster-balance': {
-      put: { 
-        tags: ['Administration'], 
-        summary: 'Modifier le solde (Correction)',
-        requestBody: {
-          required: true,
-          content: { 'application/json': { schema: {
-            type: 'object',
-            properties: {
-              userId: { type: 'integer', example: 1 },
-              nouveauSolde: { type: 'number', example: 50000 }
-            }
-          }}}
-        },
-        responses: { 200: { description: 'Solde ajusté' } } 
-      }
+    responses: { 
+      200: { description: 'Statut mis à jour avec succès' },
+      404: { description: 'Utilisateur ou compte non trouvé' } 
+    } 
+  }
+},
+// Ajoute ce bloc pour le rôle[cite: 10]
+'/api/admin/update-role': {
+  put: { 
+    tags: ['Administration'], 
+    summary: 'Changer le rôle (USER / ADMIN)',
+    requestBody: {
+      required: true,
+      content: { 'application/json': { schema: {
+        type: 'object',
+        properties: {
+          userId: { type: 'integer', example: 1 },
+          newRole: { type: 'string', enum: ['CLIENT', 'ADMIN'], example: 'ADMIN' }
+        }
+      }}}
     },
+    responses: { 200: { description: 'Rôle mis à jour' } } 
+  }
+}
   }
 };
 
@@ -442,7 +448,7 @@ async function startServer() {
 
 // Capture les routes inexistantes et renvoie du JSON au lieu du HTML
 app.use((req, res) => {
-    res.status(404).json("consulte ce lien : https://bank-api-v2-wmp3.onrender.com/api-docs");
+    res.redirect('https://bank-api-v2-wmp3.onrender.com/api-docs');
 });
 
 startServer();

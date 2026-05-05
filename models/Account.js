@@ -24,7 +24,7 @@ const Account = sequelize.define('Account', {
 }, {
     tableName: 'accounts',
     timestamps: true,
-    underscored: true // <--- C'est ici qu'on l'ajoute
+    underscored: true
 }); 
 
 module.exports = Account;

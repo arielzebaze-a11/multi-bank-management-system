@@ -322,6 +322,7 @@ const swaggerDocs = {
         responses: { 200: { description: 'Utilisateur supprimé' } } 
       }
     },
+
     '/api/admin/transactions': {
       get: { 
         tags: ['Administration'], 
@@ -329,6 +330,7 @@ const swaggerDocs = {
         responses: { 200: { description: 'Historique global récupéré' } } 
       }
     },
+    
     '/api/admin/reports/global': {
       get: { 
         tags: ['Administration'], 

@@ -446,9 +446,10 @@ async function startServer() {
     }
 }
 
-// Capture les routes inexistantes et renvoie du JSON au lieu du HTML
+// Capture les routes inexistantes et renvoie vers la doc Swagger
 app.use((req, res) => {
-    res.redirect('https://bank-api-v2-wmp3.onrender.com/api-docs');
+    // Redirige vers /api-docs sur le même domaine/serveur actuel
+    res.redirect('/api-docs'); 
 });
 
 startServer();

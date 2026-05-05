@@ -50,7 +50,7 @@ const User = sequelize.define('User', {
 
 {
     tableName: 'users',
-    timestamps: true // Gardé à false selon ton fichier original
+    timestamps: true 
 });
 
 module.exports = User;

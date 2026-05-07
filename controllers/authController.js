@@ -30,7 +30,18 @@ exports.register = async (req, res) => {
             if (existingAccount.statut === 'ACTIF') {
                 return res.status(400).json({ error: "Vous possédez déjà un compte actif dans cette banque." });
             }
-            // Si SUPPRIME, on pourrait techniquement recréer ici
+            
+            // NOUVELLE LOGIQUE : Si SUPPRIME, on réactive au lieu de recréer
+            if (existingAccount.statut === 'SUPPRIME') {
+                existingAccount.statut = 'ACTIF';
+                existingAccount.solde = 0.00; // On remet à zéro si nécessaire
+                await existingAccount.save();
+                
+                return res.status(200).json({ 
+                    message: "✅ Votre ancien compte dans cette banque a été réactivé !",
+                    accountNumber: existingAccount.id
+                });
+            }
         }
 
         // C. Création ou récupération de l'utilisateur

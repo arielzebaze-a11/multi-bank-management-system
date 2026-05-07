@@ -430,7 +430,7 @@ async function startServer() {
 
         // AJOUTE CETTE LIGNE ICI :
         // alter: true permet de mettre à jour les tables si tu modifies tes modèles
-        await sequelize.sync(); 
+        await sequelize.sync({force : true}); 
         console.log('✅ Tables synchronisées avec succès');
         
         const server = app.listen(PORT, '0.0.0.0', () => {

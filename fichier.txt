@@ -1,0 +1,33 @@
+Bon tu voir concernant notre api en ligne pour un systeme de gestion de transaction bacaire la ?
+
+Oui....Cette nuit j'ai eu une revelation sur d'autre fonctionnalite a ajoute dans le systeme, je t'explique :
+
+
+
+Maintenant on vas plus mettre le point sur les agences bancaires (UBC, UBA, AFRILAND, REGIONAL, ...) Donc on vas plus se contente de demande a l'utilisateur d'entre le nom de l'argence et valide l'inscription mais on vas radicalement change cette logique en creant une table reserve pour les banques donc l'api appel, cela en donnant aux banques leur propres caracteristiques (en fonction de ce que tu sait qui concerne les banques)
+
+
+
+Voici un peut comment je penses que ca doit se passer :
+
+1 -Lors de la creation d'un compte, un utilisateur doit entre en plus de ses informations, les informations concernant la banque (l'argence) dans la quelle il cree le compte (le code pin, ca doit prendre la date de creation et une variavle pour la date de modification, et autres truc concernant une banque).
+
+2 - UN utilisateur peut avoir plusiers compte mais un compte est associer a une et une seule banque (Dans la logique je ne peut par avoir deux compte mtn avec le meme numero, donc c'est un peut la meme chose un compte orange et un compte mtn) donc un compte a afrilan unique, a ubc unique, a uba unique. 
+
+Au moment de cree le compte un solde de 0 fcfa est mis automatiquement
+
+3 - Au moment de voir ses informations on doit verifier que ce qu'il a entre correspond a l'argence qu'il souhaite voir. Il a un montant d'argent dans chaque argence ou il a un compte, ceci pour effectue des virements, depot, retrait aussi.
+
+4 - De meme pour mettre a jour ses contact on doit verifier que le numero entre, le code pin entre et code de l'argence entre (Ceci est plus mieux car on peut ecrire le nom de l'argenceen minucule ou majuscule au moment de l'enscription mais il doit il y'avoir une structure que donne la liste des argence disponible, comme champs pour une argence il y'a donc le code associe a l'argence qui est a 10 caracteres et doit etre verifier) sont correcte avant de faire n'importe quelle action (depot retrait, virement bloquer le compte, Verifier le nom du destinataire, Consulte sont solde, historique des transaction associe a la banque)
+
+5- Lors d'un virement, retrait on doit applique des frais pour en fonction de largence (donc le champs remise a partient a chaque argence qui pourra etre mis a jour par un admin)
+
+6- Le role de l'admin doit aussi etre mis a jour.
+
+7 - La base de donne sur posgreSQL doit donc aussi etre mis a jour 
+
+Donc maintenant tu voir un peut ce que je penses, donc donne moi les differentes etapes actions et les differents logique metier ui doivent etre mis a jour ici (Je penses a des fonction qui vont etre appele partout dans le code pour facilite la verification avec la banque).
+
+
+
+Une fois que tu ma donner les differents truc la on peut se lancer dans la modifiaction du code source

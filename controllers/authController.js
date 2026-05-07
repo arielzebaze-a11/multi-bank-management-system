@@ -1,114 +1,95 @@
 const User = require('../models/User');
 const Account = require('../models/Account');
+const Bank = require('../models/Bank'); // Ajout du modèle Bank
 
-// exports.register dans ton contrôleur d'authentification
-
+// 1. INSCRIPTION
 exports.register = async (req, res) => {
     try {
-        const { nom, email, telephone, code_pin, agence } = req.body;
+        const { nom, email, telephone, code_pin, code_agence } = req.body;
 
-        // 1. Vérifier si un utilisateur existe déjà avec ce numéro
-        const existingUser = await User.findOne({ 
-            where: { telephone },
-            include: [{ model: Account, as: 'Account' }]
-        });
-
-        if (existingUser && existingUser.Account) {
-            const status = existingUser.Account.statut;
-
-            // CAS 1 : Le compte est BLOQUE
-            if (status === 'BLOQUE') {
-                return res.status(403).json({ 
-                    error: "Inscription impossible", 
-                    message: "Ce numéro est lié à un compte bloqué. Veuillez contacter l'administrateur pour changer le statut." 
-                });
-            }
-
-            // CAS 2 : Le compte est SUPPRIME (Archivé) -> On détruit pour de vrai
-            if (status === 'SUPPRIME') {
-                // On détruit d'abord le compte puis l'utilisateur (à cause des contraintes de clé étrangère)
-                await Account.destroy({ where: { userId: existingUser.id } });
-                await User.destroy({ where: { id: existingUser.id } });
-                
-                console.log(`♻️ Ancien compte supprimé définitivement pour le numéro : ${telephone}`);
-                // On continue ensuite vers la création du nouveau compte ci-dessous
-            } else if (status === 'ACTIF') {
-                // CAS 3 : Le compte est déjà ACTIF
-                return res.status(400).json({ error: "Ce numéro de téléphone est déjà utilisé par un compte actif." });
-            }
+        // A. Vérifier si l'agence existe via son code à 10 caractères
+        const bank = await Bank.findOne({ where: { code_agence } });
+        if (!bank) {
+            return res.status(404).json({ error: "Agence introuvable. Veuillez vérifier le code d'agence." });
         }
 
-        // 2. Création du nouvel utilisateur (si le numéro était libre ou si l'ancien a été détruit)
-        const newUser = await User.create({
-            nom,
-            email,
-            telephone,
-            code_pin,
-            agence
+        // B. Vérifier si un compte existe déjà pour ce numéro DANS CETTE BANQUE
+        // Un utilisateur peut avoir un compte chez UBA et un chez Afriland
+        const existingAccount = await Account.findOne({
+            include: [{
+                model: User,
+                where: { telephone }
+            }],
+            where: { bankId: bank.id }
         });
 
-        // 3. Création automatique du compte bancaire associé (par défaut 'ACTIF')
-        await Account.create({
-            userId: newUser.id,
+        if (existingAccount) {
+            if (existingAccount.statut === 'BLOQUE') {
+                return res.status(403).json({ error: "Ce numéro est lié à un compte bloqué dans cette banque." });
+            }
+            if (existingAccount.statut === 'ACTIF') {
+                return res.status(400).json({ error: "Vous possédez déjà un compte actif dans cette banque." });
+            }
+            // Si SUPPRIME, on pourrait techniquement recréer ici
+        }
+
+        // C. Création ou récupération de l'utilisateur
+        let user = await User.findOne({ where: { telephone } });
+        if (!user) {
+            user = await User.create({ nom, email, telephone, code_pin });
+        }
+
+        // D. Création du compte lié à la banque spécifique
+        const newAccount = await Account.create({
+            userId: user.id,
+            bankId: bank.id, // Liaison cruciale
             solde: 0.00,
-            statut: 'ACTIF' // On s'assure qu'il commence comme actif
+            statut: 'ACTIF'
         });
 
         res.status(201).json({
-            message: "✅ Compte créé avec succès !",
-            user: {
-                id: newUser.id,
-                nom: newUser.nom,
-                email: newUser.email,
-                telephone: newUser.telephone,
-                agence: newUser.agence
-            }
+            message: `✅ Compte créé avec succès chez ${bank.nom} !`,
+            accountNumber: newAccount.id,
+            bank: bank.nom
         });
 
     } catch (error) {
-        res.status(500).json({ error: "Erreur lors de l'inscription : " + error.message });
+        res.status(500).json({ error: "Erreur inscription : " + error.message });
     }
 };
 
-// LOGIN : Voir ses informations (Connexion via Téléphone, PIN et Agence)
-// LOGIN : Voir ses informations (Connexion via Téléphone, PIN et Agence)
+// 2. LOGIN (Multi-banque)
 exports.login = async (req, res) => {
     try {
-        const { telephone, code_pin, agence } = req.body;
+        const { telephone, code_pin, code_agence } = req.body;
 
-        // 1. D'abord, on recherche l'utilisateur ET son compte lié
-        const user = await User.findOne({ 
-            where: { telephone, agence },
-            include: [{ model: Account, as: 'Account' }] // INDISPENSABLE pour la barrière
+        // Trouver la banque
+        const bank = await Bank.findOne({ where: { code_agence } });
+        if (!bank) return res.status(404).json({ error: "Code agence invalide." });
+
+        // Trouver l'utilisateur et le compte associé à CETTE banque
+        const account = await Account.findOne({
+            where: { bankId: bank.id },
+            include: [{ 
+                model: User, 
+                where: { telephone, code_pin } 
+            }]
         });
 
-        // 2. Vérification de l'existence et du PIN[cite: 4]
-        // On fusionne l'erreur 401 pour ne pas donner d'indices aux hackers
-        if (!user || user.code_pin !== code_pin) {
-            return res.status(401).json({ 
-                error: "Accès refusé", 
-                message: "Téléphone, Agence ou Code PIN incorrect." 
-            });
+        if (!account) {
+            return res.status(401).json({ error: "Identifiants ou banque incorrects." });
         }
 
-        // 3. LA BARRIÈRE CRITIQUE (Maintenant 'user' et 'user.Account' existent)[cite: 4]
-        if (!user.Account || user.Account.statut !== 'ACTIF') {
-            return res.status(403).json({ 
-                error: "Accès interdit", 
-                message: "Ce compte n'est plus actif (Bloqué ou Supprimé). Contactez l'administrateur." 
-            });
+        if (account.statut !== 'ACTIF') {
+            return res.status(403).json({ error: "Ce compte bancaire est inactif." });
         }
 
-        // 4. Réponse avec les informations[cite: 4]
         res.json({
-            message: "Informations récupérées avec succès",
-            user: {
-                id: user.id,
-                nom: user.nom,
-                email: user.email,
-                telephone: user.telephone,
-                agence: user.agence,
-                role: user.role,
+            message: "Connexion réussie",
+            compte: {
+                banque: bank.nom,
+                solde: account.solde,
+                user: account.User.nom
             }
         });
 
@@ -120,15 +101,22 @@ exports.login = async (req, res) => {
 // UPDATE : Mise à jour du profil
 exports.updateProfile = async (req, res) => {
     try {
-        const { telephone, code_pin, nom, email, agence } = req.body;
+        const { telephone, code_pin, nom, email, code_agence } = req.body;
 
-        // 1. On cherche l'utilisateur ET son compte immédiatement[cite: 4]
+        // 1. Recherche de la banque si un changement d'agence est demandé
+        let bank = null;
+        if (code_agence) {
+            bank = await Bank.findOne({ where: { code_agence } });
+            if (!bank) return res.status(404).json({ error: "Code agence invalide." });
+        }
+
+        // 2. Recherche de l'utilisateur
         const user = await User.findOne({ 
             where: { telephone },
-            include: [{ model: Account, as: 'Account' }] // INDISPENSABLE[cite: 4, 5]
+            include: [{ model: Account, as: 'Account' }] 
         });
 
-        // 2. Vérification du PIN[cite: 4]
+        // 3. Vérification de sécurité (PIN)
         if (!user || user.code_pin !== code_pin) {
             return res.status(401).json({ 
                 error: "Accès refusé", 
@@ -136,18 +124,23 @@ exports.updateProfile = async (req, res) => {
             });
         }
 
-        // 3. LA BARRIÈRE CRITIQUE (Maintenant 'user' et 'user.Account' existent)[cite: 4]
+        // 4. Barrière sur le statut du compte
         if (!user.Account || user.Account.statut !== 'ACTIF') {
             return res.status(403).json({ 
                 error: "Accès interdit", 
-                message: "Ce compte n'est plus actif. Contactez l'administrateur." 
+                message: "Ce compte n'est plus actif." 
             });
         }
 
-        // 4. Si tout est bon, on applique les modifications[cite: 4]
+        // 5. Application des modifications
         if (nom) user.nom = nom;
         if (email) user.email = email;
-        if (agence) user.agence = agence;
+        
+        // Si l'utilisateur change d'agence, on met à jour le bankId sur le compte
+        if (bank) {
+            user.Account.bankId = bank.id;
+            await user.Account.save();
+        }
 
         await user.save();
 
@@ -157,7 +150,7 @@ exports.updateProfile = async (req, res) => {
                 nom: user.nom,
                 email: user.email,
                 telephone: user.telephone,
-                agence: user.agence
+                agence: bank ? bank.nom : "Non modifiée"
             }
         });
 

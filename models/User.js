@@ -26,7 +26,7 @@ const User = sequelize.define('User', {
     },
     code_pin: { // Remplace mot_de_passe
         type: DataTypes.STRING,
-        allowNull: false,
+        allowNull: true,
         validate: {
             isNumeric: { msg: "Le code PIN doit contenir uniquement des chiffres." },
             len: {
@@ -58,3 +58,9 @@ module.exports = User;
 const Account = require('./Account'); 
 User.hasOne(Account, { foreignKey: 'userId', as: 'Account' });
 module.exports = User;
+
+const Bank = require('./Bank');
+
+// Un compte appartient à une seule banque
+Account.belongsTo(Bank, { foreignKey: 'bankId', as: 'Bank' });
+Bank.hasMany(Account, { foreignKey: 'bankId' });

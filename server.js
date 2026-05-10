@@ -592,5 +592,17 @@ app.use((req, res) => {
     res.redirect('/api-docs'); 
 });
 
+// ══ ANTI-SLEEP RENDER FREE PLAN ══
+const https = require('https');
+const RENDER_URL = 'https://bank-api-v2-wmp3.onrender.com/api-docs';
+
+setInterval(() => {
+    https.get(RENDER_URL, (res) => {
+        console.log(`🏓 Ping anti-sleep : ${res.statusCode}`);
+    }).on('error', (err) => {
+        console.log(`⚠️ Ping échoué : ${err.message}`);
+    });
+}, 14 * 60 * 1000); // toutes les 14 minutes
+
 startServer();
 

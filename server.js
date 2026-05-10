@@ -11,7 +11,7 @@ app.use(express.json());
 const swaggerDocs = {
   openapi: '3.0.0',
   info: {
-    title: 'SYSTEME DE GESTION BANCAIRE - Multi-banque',
+    title: 'SYSTEME DE GESTION BANCAIRE : Multi-banque',
     version: '1.0.0',
     description: 'API - Multi-banque avec gestion complète des comptes, transactions et administration',
   },

@@ -9,7 +9,7 @@ app.use(express.json());
 
 // Configuration complète de Swagger (Zéro crash)
 const swaggerDocs = {
-  openapi: '2.0.0',
+  openapi: '3.0.0',
   info: {
     title: 'SYSTEME DE GESTION BANCAIRE - Multi-banque',
     version: '1.0.0',

@@ -9,11 +9,11 @@ app.use(express.json());
 
 // Configuration complète de Swagger (Zéro crash)
 const swaggerDocs = {
-  openapi: '3.0.0',
+  openapi: '2.0.0',
   info: {
-    title: 'SYSTEME DE GESTION BANCAIRE - API Documentation',
-    version: '1.0.0',
-    description: 'API Bancaire - Université de Yaoundé I'
+    title: 'SYSTEME DE GESTION BANCAIRE - Multi-banque',
+    version: '2.0.0',
+    description: 'API - Multi-banque avec gestion complète des comptes, transactions et administration',
   },
   tags: [
     { name: 'Authentification' },
@@ -21,33 +21,40 @@ const swaggerDocs = {
     { name: 'Administration' }
   ],
   paths: {
-    // --- AUTHENTIFICATION ---
-    '/api/auth/register': {
-      post: {
-        tags: ['Authentification'],
-        summary: 'Inscription',
-        requestBody: {
-          required: true,
-          content: {
-            'application/json': {
-              schema: {
-                type: 'object',
-                properties: {
-                  nom: { type: 'string', example: 'Ariel' },
-                  email: { type: 'string', example: 'ariel@example.com' },
-                  telephone: { type: 'string', example: '677000000' },
-                  // Remplace 'mot_de_passe' par 'code_pin' ici :
-                  code_pin: { type: 'string', example: '123456' },
-                  agence: { type: 'string', example: 'Bastos' }
+      // --- AUTHENTIFICATION ---
+      '/api/auth/register': {
+        post: {
+          tags: ['Authentification'],
+          summary: 'Inscription',
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['nom', 'email', 'telephone', 'code_pin', 'code_agence'],
+                  properties: {
+                    nom: { type: 'string', example: 'Ariel' },
+                    email: { type: 'string', example: 'ariel@example.com' },
+                    telephone: { type: 'string', example: '677000000' },
+                    code_pin: { type: 'string', example: '123456' },
+                    code_agence: { type: 'string', example: 'AFRI-CM-01' }
+                  }
                 }
               }
             }
+          },
+          responses: { 
+            201: { description: '✅ Compte créé avec succès' },
+            400: { description: '❌ Compte déjà actif dans cette banque' },
+            403: { description: '🔒 Compte bloqué' },
+            404: { description: '❌ Code agence introuvable' },
+            500: { description: 'Erreur serveur' }
           }
-        },
-        responses: { 201: { description: 'Utilisateur créé' } }
-      }
-    },
+        }
+      },
 
+    //voir ses informations (login) - avec code_agence pour différencier les banques
     '/api/auth/login': {
       post: {
         tags: ['Authentification'],
@@ -58,25 +65,26 @@ const swaggerDocs = {
             'application/json': {
               schema: {
                 type: 'object',
+                required: ['telephone', 'code_pin', 'code_agence'],
                 properties: {
-                  // Remplace email par telephone
-                  telephone: { 
-                    type: 'string', 
-                    example: '677000000' 
-                  },
-                  // Remplace mot_de_passe par code_pin
+                  telephone: { type: 'string', example: '677000000' },
                   code_pin: { type: 'string', example: '123456' },
-                  agence: { type: 'string', example: 'Bastos' }
+                  code_agence: { type: 'string', example: 'AFRI-CM-01' } // ← corrigé
                 }
               }
             }
           }
         },
-        responses: { 200: { description: 'Connecté' },
-        401: { description: 'Identifiants incorrects' } }
+        responses: { 
+          200: { description: 'Connecté' },
+          401: { description: 'PIN incorrect' },
+          403: { description: 'Compte bloqué ou supprimé' },
+          404: { description: 'Numéro ou agence introuvable' }
+        }
       }
     },
 
+    //mettre à jour son profil (nom, email) - avec code_agence pour différencier les banques
     '/api/user/update': {
       put: {
         tags: ['Authentification'],
@@ -87,41 +95,47 @@ const swaggerDocs = {
             'application/json': {
               schema: {
                 type: 'object',
-                required: ['telephone', 'code_pin'],
+                required: ['telephone', 'code_pin', 'code_agence'],
                 properties: {
                   telephone: { type: 'string', example: '677000000' },
                   code_pin: { type: 'string', example: '123456' },
+                  code_agence: { type: 'string', example: 'AFRI-CM-01' },
                   nom: { type: 'string', example: 'Ariel Nouveau' },
-                  email: { type: 'string', example: 'ariel.update@example.com' },
-                  agence: { type: 'string', example: 'Akwa' }
+                  email: { type: 'string', example: 'ariel.update@example.com' }
                 }
               }
             }
           }
         },
-        responses: { 200: { description: 'Mis à jour avec succès' } }
+        responses: { 
+          200: { description: 'Mis à jour avec succès' },
+          401: { description: 'PIN incorrect' },
+          403: { description: 'Compte bloqué ou supprimé' },
+          404: { description: 'Numéro ou agence introuvable' }
+        }
       }
     },
 
     //UTILISATEUR (CLIENT)
-
     '/api/transactions/verify-receiver/{telephone}': {
       get: { 
         tags: ['Utilisateur (Client)'], 
-        summary: '0 - Vérifier le nom du destinataire',
+        summary: 'Vérifier le nom du destinataire avant un virement/dépôt',
         parameters: [
           { 
             in: 'path', 
             name: 'telephone', 
             required: true, 
             description: 'Numéro de téléphone du destinataire (ex: 677000000)',
-            schema: { type: 'string' } 
+            schema: { type: 'string', example: '677000001' } 
           }
         ],
         responses: { 
-          200: { description: 'Nom trouvé' },
-          400: { description: 'Numéro invalide (format incorrect)' },
-          404: { description: 'Compte non trouvé' }
+          200: { description: '✅ Destinataire identifié' },
+          400: { description: '❌ Format du numéro incorrect' },
+          403: { description: '❌ Compte bloqué ou inactif' },
+          404: { description: '❌ Numéro introuvable' },
+          500: { description: 'Erreur serveur' }
         } 
       }
     },
@@ -136,16 +150,23 @@ const swaggerDocs = {
             'application/json': {
               schema: {
                 type: 'object',
-                required: ['telephone', 'code_pin'],
+                required: ['telephone', 'code_pin', 'code_agence'],
                 properties: {
                   telephone: { type: 'string', example: '677000000' },
-                  code_pin: { type: 'string', example: '123456' }
+                  code_pin: { type: 'string', example: '123456' },
+                  code_agence: { type: 'string', example: 'AFRI-CM-01' }
                 }
               }
             }
           }
         },
-        responses: { 200: { description: 'Solde récupéré' } }
+        responses: { 
+          200: { description: '✅ Solde récupéré' },
+          401: { description: '❌ PIN incorrect' },
+          403: { description: '🔒 Compte bloqué ou supprimé' },
+          404: { description: '❌ Numéro ou agence introuvable' },
+          500: { description: 'Erreur serveur' }
+        }
       }
     },
 
@@ -159,16 +180,23 @@ const swaggerDocs = {
             'application/json': {
               schema: {
                 type: 'object',
-                required: ['telephone', 'code_pin'],
+                required: ['telephone', 'code_pin', 'code_agence'],
                 properties: {
                   telephone: { type: 'string', example: '677000000' },
-                  code_pin: { type: 'string', example: '123456' }
+                  code_pin: { type: 'string', example: '123456' },
+                  code_agence: { type: 'string', example: 'AFRI-CM-01' }
                 }
               }
             }
           }
         },
-        responses: { 200: { description: 'Historique récupéré' } }
+        responses: { 
+          200: { description: '✅ Historique récupéré avec montants en FCFA' },
+          401: { description: '❌ PIN incorrect' },
+          403: { description: '🔒 Compte bloqué ou supprimé' },
+          404: { description: '❌ Numéro ou agence introuvable' },
+          500: { description: 'Erreur serveur' }
+        }
       }
     },
 
@@ -183,16 +211,13 @@ const swaggerDocs = {
             'application/json': {
               schema: {
                 type: 'object',
-                required: ['expediteurTel', 'codePin', 'destinataireTel', 'montant'],
+                required: ['expediteurTel', 'code_pin', 'code_agence', 'destinataireTel', 'montant'],
                 properties: {
                   expediteurTel: { type: 'string', example: '677000000' },
-                  codePin: { type: 'string', example: '123456' },
+                  code_pin: { type: 'string', example: '123456' },
+                  code_agence: { type: 'string', example: 'AFRI-CM-01' },
                   destinataireTel: { type: 'string', example: '670000002' },
-                  nomConfirme: { 
-                    type: 'string', 
-                    description: 'Le nom récupéré via verify-receiver',
-                    example: 'Ariel' 
-                  },
+                  nomConfirme: { type: 'string', example: 'Ariel' },
                   montant: { type: 'number', example: 5000 }
                 }
               }
@@ -200,9 +225,12 @@ const swaggerDocs = {
           }
         },
         responses: {
-          200: { description: 'Virement réussi' },
-          400: { description: 'Erreur de nom ou solde insuffisant' },
-          401: { description: 'PIN incorrect' }
+          200: { description: '✅ Virement réussi avec détail des frais en FCFA' },
+          400: { description: '❌ Solde insuffisant ou limite dépassée' },
+          401: { description: '❌ PIN incorrect' },
+          403: { description: '🔒 Compte bloqué ou supprimé' },
+          404: { description: '❌ Numéro ou agence introuvable' },
+          500: { description: 'Erreur serveur' }
         }
       }
     },
@@ -210,16 +238,18 @@ const swaggerDocs = {
     '/api/transactions/deposit': {
       post: {
         tags: ['Utilisateur (Client)'],
-        summary: 'Déposer de l\'argent',
+        summary: 'Déposer de l\'argent sur son compte',
         requestBody: {
           required: true,
           content: {
             'application/json': {
               schema: {
                 type: 'object',
-                required: ['telephone', 'montant'],
+                required: ['telephone', 'code_pin', 'code_agence', 'montant'],
                 properties: {
                   telephone: { type: 'string', example: '677000000' },
+                  code_pin: { type: 'string', example: '123456' },
+                  code_agence: { type: 'string', example: 'AFRI-CM-01' },
                   montant: { type: 'number', example: 10000 }
                 }
               }
@@ -227,82 +257,102 @@ const swaggerDocs = {
           }
         },
         responses: {
-          200: { description: 'Dépôt réussi' },
-          404: { description: 'Utilisateur non trouvé' }
-          
+          200: { description: '✅ Dépôt réussi avec détail en FCFA' },
+          400: { description: '❌ Montant invalide ou plafond atteint' },
+          401: { description: '❌ PIN incorrect' },
+          403: { description: '🔒 Compte bloqué ou supprimé' },
+          404: { description: '❌ Numéro ou agence introuvable' },
+          500: { description: 'Erreur serveur' }
         }
       }
     },
 
     '/api/transactions/withdraw': {
-      post: { 
-        tags: ['Utilisateur (Client)'], 
+      post: {
+        tags: ['Utilisateur (Client)'],
         summary: 'Effectuer un retrait',
         requestBody: {
           required: true,
-          content: { 'application/json': { schema: {
-            type: 'object',
-            properties: {
-              telephone: { type: 'string' },
-              codePin: { type: 'string' },
-              montant: { type: 'number' }
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['telephone', 'code_pin', 'code_agence', 'montant'],
+                properties: {
+                  telephone: { type: 'string', example: '677000000' },
+                  code_pin: { type: 'string', example: '123456' },
+                  code_agence: { type: 'string', example: 'AFRI-CM-01' },
+                  montant: { type: 'number', example: 5000 }
+                }
+              }
             }
-          }}}
+          }
         },
-        responses: { 200: { description: 'Retrait réussi' } }
+        responses: {
+          200: { description: '✅ Retrait réussi avec détail des frais en FCFA' },
+          400: { description: '❌ Solde insuffisant ou limite dépassée' },
+          401: { description: '❌ PIN incorrect' },
+          403: { description: '🔒 Compte bloqué ou supprimé' },
+          404: { description: '❌ Numéro ou agence introuvable' },
+          500: { description: 'Erreur serveur' }
+        }
       }
     },
 
     // Dans ton fichier server.js (partie Swagger)
-"/api/account/rib": {
-  "post": {
-    "summary": "Télécharger le RIB en PDF",
-    "tags": ["Utilisateur (Client)"],
-    "requestBody": {
-      "content": {
-        "application/json": {
-          "schema": {
-            "type": "object",
-            "properties": {
-              "telephone": { "type": "string" },
-              "code_pin": { "type": "string" }
+    '/api/account/rib': {
+      post: {
+        tags: ['Utilisateur (Client)'],
+        summary: 'Télécharger le RIB complet en PDF',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['telephone'],
+                properties: {
+                  telephone: { type: 'string', example: '677000000' }
+                }
+              }
             }
           }
+        },
+        responses: {
+          200: { description: '✅ PDF RIB généré avec tous les comptes et transactions' },
+          404: { description: '❌ Numéro introuvable' },
+          500: { description: 'Erreur serveur' }
         }
       }
     },
-    "responses": {
-      "200": {
-        "description": "Le fichier PDF du RIB",
-        "content": {
-          "application/pdf": {
-            "schema": {
-              "type": "string",
-              "format": "binary"
-            }
-          }
-        }
-      }
-    }
-  }
-},
     
     '/api/account/close': {
-      delete: { 
-        tags: ['Utilisateur (Client)'], 
-        summary: '7 - Clôturer le compte',
+      delete: {
+        tags: ['Utilisateur (Client)'],
+        summary: 'Clôturer son compte',
         requestBody: {
           required: true,
-          content: { 'application/json': { schema: {
-            type: 'object',
-            required: ['telephone', 'codePin'],
-            properties: {
-              telephone: { type: 'string' },
-              codePin: { type: 'string' }
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['telephone', 'code_pin', 'code_agence'],
+                properties: {
+                  telephone: { type: 'string', example: '677000000' },
+                  code_pin: { type: 'string', example: '123456' },
+                  code_agence: { type: 'string', example: 'AFRI-CM-01' }
+                }
+              }
             }
-          }}}
+          }
         },
-        responses: { 200: { description: 'Compte clôturé' } }
+        responses: {
+          200: { description: '✅ Compte clôturé avec succès' },
+          401: { description: '❌ PIN incorrect' },
+          403: { description: '🔒 Compte déjà bloqué ou clôturé' },
+          404: { description: '❌ Numéro ou agence introuvable' },
+          500: { description: 'Erreur serveur' }
+        }
       }
     },
 
@@ -310,16 +360,46 @@ const swaggerDocs = {
     '/api/admin/users': {
       get: { 
         tags: ['Administration'], 
-        summary: 'Liste de tous les utilisateurs',
-        responses: { 200: { description: 'Liste récupérée' } } 
+        summary: 'Liste de tous les utilisateurs avec leurs comptes et banques',
+        responses: { 
+          200: { description: '✅ Liste récupérée avec comptes et soldes en FCFA' },
+          404: { description: '❌ Aucun utilisateur trouvé' },
+          500: { description: 'Erreur serveur' }
+        } 
       }
     },
-    '/api/admin/user/{userId}': {
+
+   '/api/admin/user/{userId}': {
       delete: { 
         tags: ['Administration'], 
-        summary: 'Supprimer un utilisateur',
-        parameters: [{ in: 'path', name: 'userId', required: true, schema: { type: 'integer' }, example: 1 }],
-        responses: { 200: { description: 'Utilisateur supprimé' } } 
+        summary: 'Supprimer un compte utilisateur dans une banque spécifique',
+        parameters: [{ 
+          in: 'path', 
+          name: 'userId', 
+          required: true, 
+          schema: { type: 'integer' }, 
+          example: 1 
+        }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['bankId'],
+                properties: {
+                  bankId: { type: 'integer', example: 1 }
+                }
+              }
+            }
+          }
+        },
+        responses: { 
+          200: { description: '✅ Compte supprimé avec succès' },
+          400: { description: '❌ Compte déjà bloqué ou supprimé' },
+          404: { description: '❌ Utilisateur ou compte introuvable' },
+          500: { description: 'Erreur serveur' }
+        } 
       }
     },
 
@@ -327,74 +407,139 @@ const swaggerDocs = {
       get: { 
         tags: ['Administration'], 
         summary: 'Voir toutes les transactions du système',
-        responses: { 200: { description: 'Historique global récupéré' } } 
+        responses: { 
+          200: { description: '✅ Historique global récupéré avec noms et montants en FCFA' },
+          404: { description: '❌ Aucune transaction trouvée' },
+          500: { description: 'Erreur serveur' }
+        } 
       }
     },
 
     '/api/admin/reports/global': {
       get: { 
         tags: ['Administration'], 
-        summary: 'Générer des rapports financiers globaux',
-        responses: { 200: { description: 'Rapport généré' } } 
+        summary: 'Générer le rapport financier global complet en PDF',
+        responses: { 
+          200: { description: '✅ PDF généré avec banques, utilisateurs et transactions' },
+          500: { description: 'Erreur serveur' }
+        } 
       }
     },
-    '/api/admin/create-admin': {
-      post: { 
-        tags: ['Administration'], 
-        summary: 'Créer d\'autres comptes administrateurs',
-        requestBody: {
-          required: true,
-          content: { 'application/json': { schema: {
-            type: 'object',
-            properties: {
-              nom: { type: 'string', example: 'Admin Ariel' },
-              email: { type: 'string', example: 'admin@bank.com' },
-              mot_de_passe: { type: 'string', example: 'adminPass123' }
-            }
-          }}}
-        },
-        responses: { 201: { description: 'Admin créé' } } 
-      }
-    },
-    '/api/admin/settings': {
+
+    '/api/admin/account/status': {
       put: { 
         tags: ['Administration'], 
-        summary: 'Définir plafonds et frais bancaires',
+        summary: 'Mettre à jour directement le statut d\'un compte',
         requestBody: {
           required: true,
-          content: { 'application/json': { schema: {
-            type: 'object',
-            properties: {
-              plafond_virement: { type: 'number', example: 1000000 },
-              frais_retrait_pourcentage: { type: 'number', example: 1.5 }
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['userId', 'bankId', 'status'],
+                properties: {
+                  userId: { type: 'integer', example: 1 },
+                  bankId: { type: 'integer', example: 1 },
+                  status: { 
+                    type: 'string', 
+                    enum: ['ACTIF', 'BLOQUE', 'SUPPRIME'], 
+                    example: 'BLOQUE' 
+                  }
+                }
+              }
             }
-          }}}
+          }
         },
-        responses: { 200: { description: 'Paramètres mis à jour' } } 
+        responses: { 
+          200: { description: '✅ Statut mis à jour' },
+          400: { description: '❌ Statut invalide ou déjà identique' },
+          404: { description: '❌ Utilisateur ou compte introuvable' },
+          500: { description: 'Erreur serveur' }
+        } 
       }
     },
-    // Remplace le bloc '/api/admin/compte/statut' par celui-ci[cite: 10]
-// Dans server.js, sous l'objet "paths"
-'/api/admin/compte/statut': { // <-- Doit être identique à la route api.js
-  put: { 
-    tags: ['Administration'], 
-    summary: 'Bloquer ou Débloquer un compte',
-    requestBody: {
-      required: true,
-      content: { 'application/json': { schema: {
-        type: 'object',
-        properties: {
-          userId: { type: 'integer', example: 1 },
-          action: { type: 'string', enum: ['BLOQUER', 'DEBLOQUER'], example: 'BLOQUER' }
-        }
-      }}}
+
+    // '/api/admin/settings': {
+    //   put: { 
+    //     tags: ['Administration'], 
+    //     summary: 'Définir plafonds et frais bancaires',
+    //     requestBody: {
+    //       required: true,
+    //       content: { 'application/json': { schema: {
+    //         type: 'object',
+    //         properties: {
+    //           plafond_virement: { type: 'number', example: 1000000 },
+    //           frais_retrait_pourcentage: { type: 'number', example: 1.5 }
+    //         }
+    //       }}}
+    //     },
+    //     responses: { 200: { description: 'Paramètres mis à jour' } } 
+    //   }
+    // },
+
+    '/api/admin/account/set-limit': {
+      put: { 
+        tags: ['Administration'], 
+        summary: 'Définir la limite de virement d\'un compte',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['userId', 'bankId', 'limite'],
+                properties: {
+                  userId: { type: 'integer', example: 1 },
+                  bankId: { type: 'integer', example: 1 },
+                  limite: { type: 'number', example: 500000 }
+                }
+              }
+            }
+          }
+        },
+        responses: { 
+          200: { description: '✅ Limite mise à jour en FCFA' },
+          400: { description: '❌ Limite invalide' },
+          403: { description: '🔒 Compte bloqué ou supprimé' },
+          404: { description: '❌ Utilisateur ou compte introuvable' },
+          500: { description: 'Erreur serveur' }
+        } 
+      }
     },
-    responses: { 
-      200: { description: 'Statut mis à jour avec succès' },
-      404: { description: 'Utilisateur ou compte non trouvé' } 
-    } 
-  }
-},
+   
+    '/api/admin/compte/statut': {
+      put: { 
+        tags: ['Administration'], 
+        summary: 'Bloquer ou Débloquer un compte',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['userId', 'bankId', 'action'],
+                properties: {
+                  userId: { type: 'integer', example: 1 },
+                  bankId: { type: 'integer', example: 1 },
+                  action: { 
+                    type: 'string', 
+                    enum: ['BLOQUER', 'DEBLOQUER'], 
+                    example: 'BLOQUER' 
+                  }
+                }
+              }
+            }
+          }
+        },
+        responses: { 
+          200: { description: '✅ Statut mis à jour avec succès' },
+          400: { description: '❌ Action invalide ou statut déjà identique' },
+          404: { description: '❌ Utilisateur ou compte introuvable' },
+          500: { description: 'Erreur serveur' }
+        } 
+      }
+    },
+
 // Ajoute ce bloc pour le rôle[cite: 10]
 '/api/admin/update-role': {
   put: { 

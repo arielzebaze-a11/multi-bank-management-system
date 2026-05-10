@@ -7,53 +7,80 @@ exports.register = async (req, res) => {
     try {
         const { nom, email, telephone, code_pin, code_agence } = req.body;
 
-        // A. Vérifier si l'agence existe via son code à 10 caractères
+        // 1. Vérifier que la banque existe
         const bank = await Bank.findOne({ where: { code_agence } });
         if (!bank) {
-            return res.status(404).json({ error: "Agence introuvable. Veuillez vérifier le code d'agence." });
+            return res.status(404).json({ 
+                error: "❌ Code agence invalide. Vérifiez le code de votre agence." 
+            });
         }
 
-        // B. Vérifier si un compte existe déjà pour ce numéro DANS CETTE BANQUE
-        // Un utilisateur peut avoir un compte chez UBA et un chez Afriland
-        const existingAccount = await Account.findOne({
-            include: [{
-                model: User,
-                where: { telephone }
-            }],
-            where: { bankId: bank.id }
-        });
-
-        if (existingAccount) {
-            if (existingAccount.statut === 'BLOQUE') {
-                return res.status(403).json({ error: "Ce numéro est lié à un compte bloqué dans cette banque." });
-            }
-            if (existingAccount.statut === 'ACTIF') {
-                return res.status(400).json({ error: "Vous possédez déjà un compte actif dans cette banque." });
-            }
-            
-            // NOUVELLE LOGIQUE : Si SUPPRIME, on réactive au lieu de recréer
-            if (existingAccount.statut === 'SUPPRIME') {
-                existingAccount.statut = 'ACTIF';
-                existingAccount.solde = 0.00; // On remet à zéro si nécessaire
-                await existingAccount.save();
-                
-                return res.status(200).json({ 
-                    message: "✅ Votre ancien compte dans cette banque a été réactivé !",
-                    accountNumber: existingAccount.id
-                });
-            }
-        }
-
-        // C. Création ou récupération de l'utilisateur
+        // 2. Vérifier si l'utilisateur existe déjà
         let user = await User.findOne({ where: { telephone } });
-        if (!user) {
-            user = await User.create({ nom, email, telephone, code_pin });
+
+        if (user) {
+            // 3. Cet utilisateur existe → vérifier s'il a déjà un compte dans CETTE banque
+            const existingAccount = await Account.findOne({ 
+                where: { userId: user.id, bankId: bank.id } 
+            });
+
+            if (existingAccount) {
+
+                // ❌ Compte ACTIF → déjà inscrit dans cette banque
+                if (existingAccount.statut === 'ACTIF') {
+                    return res.status(400).json({ 
+                        error: `❌ Vous avez déjà un compte actif chez ${bank.nom}.` 
+                    });
+                }
+
+                // ❌ Compte BLOQUÉ → contacter admin
+                if (existingAccount.statut === 'BLOQUE') {
+                    return res.status(403).json({ 
+                        error: `🔒 Votre compte chez ${bank.nom} est bloqué. Contactez l'administrateur.` 
+                    });
+                }
+
+                // 📦 Compte SUPPRIMÉ → on archive, on crée un nouveau
+                if (existingAccount.statut === 'SUPPRIME') {
+                    const newAccount = await Account.create({
+                        userId: user.id,
+                        bankId: bank.id,
+                        code_pin: code_pin,
+                        solde: 0.00,
+                        statut: 'ACTIF'
+                    });
+
+                    return res.status(201).json({ 
+                        message: `✅ Ancien compte archivé. Nouveau compte créé chez ${bank.nom} !`,
+                        accountNumber: newAccount.id,
+                        bank: bank.nom
+                    });
+                }
+            }
+
+            // Cet utilisateur n'a pas encore de compte dans CETTE banque → on le crée
+            const newAccount = await Account.create({
+                userId: user.id,
+                bankId: bank.id,
+                code_pin: code_pin,
+                solde: 0.00,
+                statut: 'ACTIF'
+            });
+
+            return res.status(201).json({ 
+                message: `✅ Nouveau compte créé chez ${bank.nom} !`,
+                accountNumber: newAccount.id,
+                bank: bank.nom
+            });
         }
 
-        // D. Création du compte lié à la banque spécifique
+        // 4. Nouvel utilisateur → on crée le user ET le compte
+        user = await User.create({ nom, email, telephone, code_pin });
+
         const newAccount = await Account.create({
             userId: user.id,
-            bankId: bank.id, // Liaison cruciale
+            bankId: bank.id,
+            code_pin: code_pin,
             solde: 0.00,
             statut: 'ACTIF'
         });
@@ -74,33 +101,60 @@ exports.login = async (req, res) => {
     try {
         const { telephone, code_pin, code_agence } = req.body;
 
-        // Trouver la banque
+        // 1. Vérifier que la banque existe
         const bank = await Bank.findOne({ where: { code_agence } });
-        if (!bank) return res.status(404).json({ error: "Code agence invalide." });
+        if (!bank) {
+            return res.status(404).json({ 
+                error: "❌ Code agence invalide." 
+            });
+        }
 
-        // Trouver l'utilisateur et le compte associé à CETTE banque
-        const account = await Account.findOne({
-            where: { bankId: bank.id },
-            include: [{ 
-                model: User, 
-                where: { telephone, code_pin } 
-            }]
+        // 2. Vérifier que l'utilisateur existe via téléphone
+        const user = await User.findOne({ where: { telephone } });
+        if (!user) {
+            return res.status(404).json({ 
+                error: "❌ Aucun compte trouvé avec ce numéro." 
+            });
+        }
+
+        // 3. Chercher le compte de cet utilisateur dans CETTE banque
+        const account = await Account.findOne({ 
+            where: { 
+                userId: user.id, 
+                bankId: bank.id,
+                code_pin: code_pin  // PIN vérifié ici sur le compte
+            } 
         });
 
         if (!account) {
-            return res.status(401).json({ error: "Identifiants ou banque incorrects." });
+            return res.status(401).json({ 
+                error: "❌ Code PIN ou code agence incorrect." 
+            });
         }
 
-        if (account.statut !== 'ACTIF') {
-            return res.status(403).json({ error: "Ce compte bancaire est inactif." });
+        // 4. Vérification du statut
+        if (account.statut === 'BLOQUE') {
+            return res.status(403).json({ 
+                error: "🔒 Ce compte est bloqué. Contactez l'administrateur." 
+            });
         }
 
+        if (account.statut === 'SUPPRIME') {
+            return res.status(403).json({ 
+                error: "🗑️ Ce compte a été supprimé. Créez un nouveau compte." 
+            });
+        }
+
+        // 5. Compte ACTIF → on affiche les infos
         res.json({
-            message: "Connexion réussie",
+            message: "✅ Connexion réussie",
             compte: {
+                id: account.id,
                 banque: bank.nom,
                 solde: account.solde,
-                user: account.User.nom
+                user: user.nom,
+                telephone: user.telephone,
+                email: user.email
             }
         });
 
@@ -114,54 +168,62 @@ exports.updateProfile = async (req, res) => {
     try {
         const { telephone, code_pin, nom, email, code_agence } = req.body;
 
-        // 1. Recherche de la banque si un changement d'agence est demandé
-        let bank = null;
-        if (code_agence) {
-            bank = await Bank.findOne({ where: { code_agence } });
-            if (!bank) return res.status(404).json({ error: "Code agence invalide." });
+        // 1. Vérifier que la banque existe
+        const bank = await Bank.findOne({ where: { code_agence } });
+        if (!bank) {
+            return res.status(404).json({ 
+                error: "❌ Code agence invalide." 
+            });
         }
 
-        // 2. Recherche de l'utilisateur
-        const user = await User.findOne({ 
-            where: { telephone },
-            include: [{ model: Account, as: 'Account' }] 
+        // 2. Vérifier que l'utilisateur existe
+        const user = await User.findOne({ where: { telephone } });
+        if (!user) {
+            return res.status(404).json({ 
+                error: "❌ Aucun utilisateur trouvé avec ce numéro." 
+            });
+        }
+
+        // 3. Vérifier que ce user a bien un compte dans CETTE banque
+        const account = await Account.findOne({ 
+            where: { 
+                userId: user.id, 
+                bankId: bank.id,
+                code_pin: code_pin  // PIN vérifié sur le compte
+            } 
         });
 
-        // 3. Vérification de sécurité (PIN)
-        if (!user || user.code_pin !== code_pin) {
+        if (!account) {
             return res.status(401).json({ 
-                error: "Accès refusé", 
-                message: "Téléphone ou Code PIN incorrect." 
+                error: "❌ Code PIN ou code agence incorrect." 
             });
         }
 
-        // 4. Barrière sur le statut du compte
-        if (!user.Account || user.Account.statut !== 'ACTIF') {
+        // 4. Vérification du statut
+        if (account.statut === 'BLOQUE') {
             return res.status(403).json({ 
-                error: "Accès interdit", 
-                message: "Ce compte n'est plus actif." 
+                error: "🔒 Ce compte est bloqué. Contactez l'administrateur." 
             });
         }
 
-        // 5. Application des modifications
+        if (account.statut === 'SUPPRIME') {
+            return res.status(403).json({ 
+                error: "🗑️ Ce compte a été supprimé." 
+            });
+        }
+
+        // 5. Mise à jour des informations
         if (nom) user.nom = nom;
         if (email) user.email = email;
-        
-        // Si l'utilisateur change d'agence, on met à jour le bankId sur le compte
-        if (bank) {
-            user.Account.bankId = bank.id;
-            await user.Account.save();
-        }
-
         await user.save();
 
         res.json({
-            message: "Profil mis à jour avec succès !",
+            message: "✅ Profil mis à jour avec succès !",
             user: {
                 nom: user.nom,
                 email: user.email,
                 telephone: user.telephone,
-                agence: bank ? bank.nom : "Non modifiée"
+                banque: bank.nom
             }
         });
 

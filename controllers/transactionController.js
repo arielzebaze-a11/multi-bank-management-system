@@ -3,79 +3,134 @@ const Account = require('../models/Account');
 const Transaction = require('../models/Transaction');
 const sequelize = require('../config/db');
 const { Op } = require('sequelize');
+const Bank = require('../models/Bank'); // Ajout du modèle Bank
 const PDFDocument = require('pdfkit'); // Pour générer le PDF du RIB
-const MAX_SOLDE_AUTORISE = 1_000_000_000;
+const MAX_SOLDE_AUTORISE = 1_000_000;
 
 exports.getBalance = async (req, res) => {
     try {
-        const { telephone, code_pin } = req.body;
+        const { telephone, code_pin, code_agence } = req.body;
 
-        // 1. On vérifie d'abord si l'utilisateur existe avec ce téléphone et ce PIN
-        const user = await User.findOne({ 
-            where: { telephone, code_pin },
-            include: [{ model: Account, as: 'Account' }]
-        });
-        
-        // LA BARRIÈRE CRITIQUE
-        if (!user || !user.Account || user.Account.statut !== 'ACTIF') {
-            return res.status(403).json({ 
-                error: "Accès interdit", 
-                message: "Ce compte n'est plus actif (Bloqué ou Supprimé). Contactez l'administrateur." 
+        // 1. Vérifier que la banque existe
+        const bank = await Bank.findOne({ where: { code_agence } });
+        if (!bank) {
+            return res.status(404).json({ 
+                error: "❌ Code agence invalide." 
             });
         }
 
+        // 2. Vérifier que l'utilisateur existe
+        const user = await User.findOne({ where: { telephone } });
         if (!user) {
-            return res.status(401).json({ 
-                error: "Accès refusé. Téléphone ou Code PIN incorrect." 
+            return res.status(404).json({ 
+                error: "❌ Aucun utilisateur trouvé avec ce numéro." 
             });
         }
 
-        // 2. Si l'utilisateur est bon, on cherche son compte bancaire
+        // 3. Vérifier le compte dans CETTE banque avec ce PIN
         const account = await Account.findOne({ 
-            where: { userId: user.id } 
+            where: { 
+                userId: user.id, 
+                bankId: bank.id,
+                code_pin: code_pin
+            } 
         });
 
         if (!account) {
-            return res.status(404).json({ error: "Compte bancaire introuvable." });
+            return res.status(401).json({ 
+                error: "❌ Code PIN ou code agence incorrect." 
+            });
         }
 
-        // 3. On renvoie le solde
-        res.json({
-            nom: user.nom,
-            telephone: user.telephone,
-            solde: account.solde,
-            devise: "FCFA"
+        // 4. Vérification du statut
+        if (account.statut === 'BLOQUE') {
+            return res.status(403).json({ 
+                error: "🔒 Ce compte est bloqué. Contactez l'administrateur." 
+            });
+        }
+
+        if (account.statut === 'SUPPRIME') {
+            return res.status(403).json({ 
+                error: "🗑️ Ce compte a été supprimé." 
+            });
+        }
+
+        // 5. Compte ACTIF → afficher le solde
+        return res.status(200).json({
+            message: "✅ Solde récupéré avec succès",
+            compte: {
+                banque: bank.nom,
+                titulaire: user.nom,
+                telephone: user.telephone,
+                solde: account.solde,
+                statut: account.statut
+            }
         });
 
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        return res.status(500).json({ 
+            error: "❌ Erreur serveur",
+            message: error.message 
+        });
     }
 };
 
 // Historique des transactions
 exports.getHistory = async (req, res) => {
     try {
-        const { telephone, code_pin } = req.body;
+        const { telephone, code_pin, code_agence } = req.body;
 
-        // 1. Authentification stricte
-        const user = await User.findOne({ where: { telephone, code_pin },
-        include: [{ model: Account, as: 'Account' }]});
-        if (!user) {
-            return res.status(401).json({ error: "Accès refusé. Téléphone ou Code PIN incorrect." });
-        }
-
-        // LA BARRIÈRE CRITIQUE
-        if (!user || !user.Account || user.Account.statut !== 'ACTIF') {
-            return res.status(403).json({ 
-                error: "Accès interdit", 
-                message: "Ce compte n'est plus actif (Bloqué ou Supprimé). Contactez l'administrateur." 
+        // 1. Vérifier que la banque existe
+        const bank = await Bank.findOne({ where: { code_agence } });
+        if (!bank) {
+            return res.status(404).json({ 
+                error: "❌ Code agence invalide." 
             });
         }
 
-        // 2. Récupération avec les infos du correspondant (Email, Nom, Tel)
+        // 2. Vérifier que l'utilisateur existe
+        const user = await User.findOne({ where: { telephone } });
+        if (!user) {
+            return res.status(404).json({ 
+                error: "❌ Aucun utilisateur trouvé avec ce numéro." 
+            });
+        }
+
+        // 3. Vérifier le compte dans CETTE banque avec ce PIN
+        const account = await Account.findOne({ 
+            where: { 
+                userId: user.id, 
+                bankId: bank.id,
+                code_pin: code_pin
+            } 
+        });
+
+        if (!account) {
+            return res.status(401).json({ 
+                error: "❌ Code PIN ou code agence incorrect." 
+            });
+        }
+
+        // 4. Vérification du statut
+        if (account.statut === 'BLOQUE') {
+            return res.status(403).json({ 
+                error: "🔒 Ce compte est bloqué. Contactez l'administrateur." 
+            });
+        }
+
+        if (account.statut === 'SUPPRIME') {
+            return res.status(403).json({ 
+                error: "🗑️ Ce compte a été supprimé." 
+            });
+        }
+
+        // 5. Récupérer les transactions liées à CE numéro
         const transactions = await Transaction.findAll({
             where: {
-                [Op.or]: [{ expediteur_tel: telephone }, { destinataire_tel: telephone }]
+                [Op.or]: [
+                    { expediteur_tel: telephone },
+                    { destinataire_tel: telephone }
+                ]
             },
             include: [
                 { model: User, as: 'Expediteur', attributes: ['nom', 'email', 'telephone'] },
@@ -84,7 +139,7 @@ exports.getHistory = async (req, res) => {
             order: [['createdAt', 'DESC']]
         });
 
-        // 3. Formatage selon tes exigences
+        // 6. Formatage
         const historique = transactions.map(t => {
             const isSent = t.expediteur_tel === telephone;
             const correspondant = isSent ? t.Destinataire : t.Expediteur;
@@ -92,25 +147,30 @@ exports.getHistory = async (req, res) => {
             return {
                 date: t.createdAt,
                 montant: `${t.montant} FCFA`,
-                statut: isSent ? "Argent envoyé" : "Argent reçu",
                 type: t.type,
+                sens: isSent ? "💸 Argent envoyé" : "💰 Argent reçu",
                 correspondant: {
                     nom: correspondant ? correspondant.nom : "Système/Inconnu",
-                    email: correspondant ? correspondant.email : "N/A",
                     telephone: isSent ? t.destinataire_tel : t.expediteur_tel
                 },
-                etat_transaction: t.status // Affiche SUCCESS ou autre
+                statut: t.status
             };
         });
 
-        res.json({
+        return res.status(200).json({
+            message: "✅ Historique récupéré",
             client: user.nom,
-            devise: "FCFA",
+            banque: bank.nom,
+            solde_actuel: `${account.solde} FCFA`,
+            nombre_transactions: historique.length,
             transactions: historique
         });
 
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        return res.status(500).json({ 
+            error: "❌ Erreur serveur",
+            message: error.message 
+        });
     }
 };
 
@@ -119,46 +179,49 @@ exports.verifyReceiver = async (req, res) => {
     try {
         const { telephone } = req.params;
 
-        // 1. Validation de base
+        // 1. Validation du format
         if (!telephone || telephone.length < 9) {
             return res.status(400).json({ 
-                error: "Format incorrect", 
+                error: "❌ Format incorrect.",
                 message: "Le numéro est trop court ou invalide." 
             });
         }
 
-        // AJOUT DE L'INCLUDE ICI
-        const user = await User.findOne({ 
-            where: { telephone },
-            include: [{ model: Account, as: 'Account' }] 
-        });
+        // 2. Vérifier que l'utilisateur existe
+        const user = await User.findOne({ where: { telephone } });
 
-        // 2. Erreur 404 propre
         if (!user) {
             return res.status(404).json({ 
-                error: "Compte non trouvé", 
+                error: "❌ Compte non trouvé.",
                 message: "Ce numéro n'existe pas dans notre système." 
             });
         }
 
-        // 3. LA BARRIÈRE CRITIQUE (Maintenant user.Account existe)
-        if (user.Account.statut !== 'ACTIF') {
+        // 3. Vérifier qu'il a AU MOINS un compte ACTIF
+        const activeAccount = await Account.findOne({ 
+            where: { 
+                userId: user.id, 
+                statut: 'ACTIF' 
+            } 
+        });
+
+        if (!activeAccount) {
             return res.status(403).json({ 
-                error: "Accès interdit", 
-                message: "Le compte du destinataire est bloqué ou inactif." 
+                error: "❌ Accès interdit.",
+                message: "Le compte de ce destinataire est bloqué ou inactif." 
             });
         }
 
-        // 3. Succès 200
+        // 4. Succès → retourner le nom
         return res.status(200).json({ 
             nom: user.nom,
-            message: "Destinataire identifié"
+            telephone: user.telephone,
+            message: "✅ Destinataire identifié" 
         });
 
     } catch (error) {
-        // 4. Erreur 500 propre en JSON
         return res.status(500).json({ 
-            error: "Erreur serveur", 
+            error: "❌ Erreur serveur",
             message: error.message 
         });
     }
@@ -166,82 +229,143 @@ exports.verifyReceiver = async (req, res) => {
 
 // Virement par numéro de téléphone et code pin
 exports.transfer = async (req, res) => {
-    const t = await sequelize.transaction(); // Protection atomique
+    const t = await sequelize.transaction();
 
     try {
-        const { expediteurTel, codePin, destinataireTel, montant, nomConfirme } = req.body;
+        const { expediteurTel, code_pin, code_agence, destinataireTel, montant, nomConfirme } = req.body;
 
-        // 1. Authentification de l'expéditeur
-        const sender = await User.findOne({ 
-            where: { telephone: expediteurTel, code_pin: codePin },
-            include: [{ model: Account, as: 'Account' }] 
-        });
-
-        // 2. LA BARRIÈRE CRITIQUE (Corrigée avec 'sender')
-        if (!sender || !sender.Account || sender.Account.statut !== 'ACTIF') {
+        // ══ 1. VÉRIFIER LA BANQUE DE L'EXPÉDITEUR ══
+        const bankExpediteur = await Bank.findOne({ where: { code_agence } });
+        if (!bankExpediteur) {
             await t.rollback();
-            return res.status(403).json({ 
-                error: "Accès interdit", 
-                message: "Votre compte est inactif ou vos identifiants sont incorrects." 
-            });
+            return res.status(404).json({ error: "❌ Code agence invalide." });
         }
 
+        // ══ 2. VÉRIFIER L'EXPÉDITEUR ══
+        const sender = await User.findOne({ where: { telephone: expediteurTel } });
         if (!sender) {
             await t.rollback();
-            return res.status(401).json({ error: "Numéro ou code PIN incorrect." });
+            return res.status(404).json({ error: "❌ Numéro expéditeur introuvable." });
         }
 
-        // 2. Vérification du destinataire et de son nom
-        const receiver = await User.findOne({ 
-            where: { telephone: destinataireTel },
-            include: [{ model: Account, as: 'Account' }] 
+        // ══ 3. VÉRIFIER SON COMPTE DANS CETTE BANQUE ══
+        const senderAccount = await Account.findOne({
+            where: { 
+                userId: sender.id, 
+                bankId: bankExpediteur.id,
+                code_pin: code_pin
+            }
         });
 
+        if (!senderAccount) {
+            await t.rollback();
+            return res.status(401).json({ error: "❌ Code PIN ou code agence incorrect." });
+        }
+
+        // ══ 4. VÉRIFIER STATUT EXPÉDITEUR ══
+        if (senderAccount.statut === 'BLOQUE') {
+            await t.rollback();
+            return res.status(403).json({ error: "🔒 Votre compte est bloqué. Contactez l'administrateur." });
+        }
+
+        if (senderAccount.statut === 'SUPPRIME') {
+            await t.rollback();
+            return res.status(403).json({ error: "🗑️ Votre compte a été supprimé." });
+        }
+
+        // ══ 5. VÉRIFIER LE DESTINATAIRE ══
+        const receiver = await User.findOne({ where: { telephone: destinataireTel } });
         if (!receiver) {
             await t.rollback();
-            return res.status(404).json({ error: "Le destinataire a disparu ou le numéro est erroné." });
+            return res.status(404).json({ error: "❌ Numéro destinataire introuvable." });
         }
 
-        // Sécurité : On compare le nom que l'utilisateur a vu avec celui en base
+        // ══ 6. VÉRIFIER QUE LE DESTINATAIRE A UN COMPTE ACTIF (dans n'importe quelle banque) ══
+        const receiverAccount = await Account.findOne({
+            where: { 
+                userId: receiver.id,
+                statut: 'ACTIF'
+            }
+        });
+
+        if (!receiverAccount) {
+            await t.rollback();
+            return res.status(403).json({ error: "❌ Le destinataire n'a pas de compte actif." });
+        }
+
+        // ══ 7. VÉRIFIER LE NOM DU DESTINATAIRE ══
         if (nomConfirme && receiver.nom !== nomConfirme) {
             await t.rollback();
-            return res.status(400).json({ error: "Le nom du destinataire ne correspond plus. Veuillez recommencer." });
-        }
-
-        // 3. Contrôle du solde
-        const soldeExp = parseFloat(sender.Account.solde);
-        if (soldeExp < parseFloat(montant)) {
-            await t.rollback();
             return res.status(400).json({ 
-                error: "Solde insuffisant.",
-                solde_restant: `${soldeExp} FCFA` 
+                error: "❌ Le nom du destinataire ne correspond pas. Veuillez recommencer." 
             });
         }
 
-        // 4. Exécution simultanée des mises à jour
-        await sender.Account.update({ solde: soldeExp - parseFloat(montant) }, { transaction: t });
-        await receiver.Account.update({ solde: parseFloat(receiver.Account.solde) + parseFloat(montant) }, { transaction: t });
+        // ══ 8. CALCULER LES FRAIS DE LA BANQUE EXPÉDITEUR ══
+        const montantNet = parseFloat(montant);
+        const fraisPourcentage = parseFloat(bankExpediteur.frais_virement); // ex: 1.5
+        const frais = parseFloat(((montantNet * fraisPourcentage) / 100).toFixed(2));
+        const montantTotal = parseFloat((montantNet + frais).toFixed(2)); // ce qui est débité
 
-        // 5. Historisation
+        // ══ 9. VÉRIFIER LE SOLDE (montant + frais) ══
+        const soldeExp = parseFloat(senderAccount.solde);
+        if (soldeExp < montantTotal) {
+            await t.rollback();
+            return res.status(400).json({ 
+                error: "❌ Solde insuffisant.",
+                details: {
+                    solde_disponible: `${soldeExp} FCFA`,
+                    montant_transfert: `${montantNet} FCFA`,
+                    frais: `${frais} FCFA (${fraisPourcentage}%)`,
+                    total_requis: `${montantTotal} FCFA`
+                }
+            });
+        }
+
+        // ══ 10. VÉRIFIER LA LIMITE DE VIREMENT ══
+        if (montantNet > parseFloat(senderAccount.limite_virement)) {
+            await t.rollback();
+            return res.status(400).json({ 
+                error: `❌ Montant dépasse votre limite de virement de ${senderAccount.limite_virement} FCFA.`
+            });
+        }
+
+        // ══ 11. EXÉCUTER LE VIREMENT ══
+        await senderAccount.update(
+            { solde: parseFloat((soldeExp - montantTotal).toFixed(2)) }, 
+            { transaction: t }
+        );
+        await receiverAccount.update(
+            { solde: parseFloat((parseFloat(receiverAccount.solde) + montantNet).toFixed(2)) }, 
+            { transaction: t }
+        );
+
+        // ══ 12. HISTORISER ══
         await Transaction.create({
             type: 'VIREMENT',
-            montant: montant,
+            montant: montantNet,
             expediteur_tel: expediteurTel,
             destinataire_tel: destinataireTel,
             status: 'SUCCESS'
         }, { transaction: t });
 
-        await t.commit(); // Tout est OK
+        await t.commit();
 
-        res.json({
-            message: "Transfert réussi !",
-            details: `Vous avez envoyé ${montant} FCFA à ${receiver.nom}.`,
-            votre_nouveau_solde: `${sender.Account.solde} FCFA`
+        return res.status(200).json({
+            message: "✅ Virement effectué avec succès !",
+            details: {
+                expediteur: sender.nom,
+                destinataire: receiver.nom,
+                montant_envoye: `${montantNet} FCFA`,
+                frais_appliques: `${frais} FCFA (${fraisPourcentage}% - ${bankExpediteur.nom})`,
+                total_debite: `${montantTotal} FCFA`,
+                nouveau_solde: `${(soldeExp - montantTotal).toFixed(2)} FCFA`
+            }
         });
 
     } catch (error) {
-        if (t) await t.rollback();
-        res.status(500).json({ error: "Erreur technique : " + error.message });
+        await t.rollback();
+        return res.status(500).json({ error: "❌ Erreur technique : " + error.message });
     }
 };
 
@@ -250,211 +374,460 @@ exports.deposit = async (req, res) => {
     const t = await sequelize.transaction();
 
     try {
-        const { telephone, montant } = req.body;
+        const { telephone, code_pin, code_agence, montant } = req.body;
 
-        // 1. On cherche l'utilisateur pour afficher/vérifier son nom
-        const receiver = await User.findOne({ 
-            where: { telephone },
-            include: [{ model: Account, as: 'Account' }] 
+        // ══ 1. VÉRIFIER LA BANQUE ══
+        const bank = await Bank.findOne({ where: { code_agence } });
+        if (!bank) {
+            await t.rollback();
+            return res.status(404).json({ error: "❌ Code agence invalide." });
+        }
+
+        // ══ 2. VÉRIFIER L'UTILISATEUR ══
+        const user = await User.findOne({ where: { telephone } });
+        if (!user) {
+            await t.rollback();
+            return res.status(404).json({ error: "❌ Numéro introuvable." });
+        }
+
+        // ══ 3. VÉRIFIER SON COMPTE DANS CETTE BANQUE ══
+        const account = await Account.findOne({
+            where: { 
+                userId: user.id, 
+                bankId: bank.id,
+                code_pin: code_pin
+            }
         });
 
-        // Correction ligne 254 de transactionController.js
-        if (!receiver || !receiver.Account || receiver.Account.statut !== 'ACTIF') {
-            return res.status(403).json({ 
-                error: "Accès interdit", 
-                message: "Ce compte n'est plus actif." 
-            });
-        }
-        
-        if (!receiver) {
+        if (!account) {
             await t.rollback();
-            return res.status(404).json({ error: "Aucun compte trouvé pour ce numéro." });
+            return res.status(401).json({ error: "❌ Code PIN ou code agence incorrect." });
         }
 
-        if (futurSolde > MAX_SOLDE_AUTORISE) {
+        // ══ 4. VÉRIFIER LE STATUT ══
+        if (account.statut === 'BLOQUE') {
+            await t.rollback();
+            return res.status(403).json({ error: "🔒 Ce compte est bloqué. Contactez l'administrateur." });
+        }
+
+        if (account.statut === 'SUPPRIME') {
+            await t.rollback();
+            return res.status(403).json({ error: "🗑️ Ce compte a été supprimé." });
+        }
+
+        // ══ 5. VÉRIFIER LE MONTANT ══
+        const montantNet = parseFloat(montant);
+        if (montantNet <= 0) {
+            await t.rollback();
+            return res.status(400).json({ error: "❌ Le montant doit être supérieur à 0 FCFA." });
+        }
+
+        // ══ 6. VÉRIFIER LE PLAFOND DU COMPTE (solde max 3 000 000) ══
+        const soldeActuel = parseFloat(account.solde);
+        if (soldeActuel + montantNet > 3000000) {
+            await t.rollback();
             return res.status(400).json({ 
-                error: "Limite de solde atteinte",
-                message: `Le solde total ne peut pas dépasser ${MAX_SOLDE_AUTORISE.toLocaleString()} FCFA. Veuillez effectuer un dépôt plus petit ou retirer des fonds.`
+                error: "❌ Dépôt impossible : plafond de 3 000 000 FCFA atteint.",
+                details: {
+                    solde_actuel: `${soldeActuel} FCFA`,
+                    montant_depot: `${montantNet} FCFA`,
+                    plafond: "3 000 000 FCFA",
+                    depot_max_possible: `${(3000000 - soldeActuel).toFixed(2)} FCFA`
+                }
             });
         }
-        // ----------------------------------
 
-        // Si tout est bon, on procède au dépôt...
-        account.solde = futurSolde;
-        await account.save();
+        // ══ 7. EFFECTUER LE DÉPÔT ══
+        const nouveauSolde = parseFloat((soldeActuel + montantNet).toFixed(2));
+        await account.update({ solde: nouveauSolde }, { transaction: t });
 
-        // 2. Mise à jour du solde
-        const nouveauSolde = parseFloat(receiver.Account.solde) + parseFloat(montant);
-        await receiver.Account.update({ solde: nouveauSolde }, { transaction: t });
-
-        // 3. Historique (on met expediteur_tel à NULL pour un DEPOT externe)
+        // ══ 8. HISTORISER ══
         await Transaction.create({
             type: 'DEPOT',
-            montant: montant,
+            montant: montantNet,
+            expediteur_tel: null,
             destinataire_tel: telephone,
             status: 'SUCCESS'
         }, { transaction: t });
 
         await t.commit();
 
-        res.json({
-            message: "Dépôt réussi !",
-            beneficiaire: receiver.nom, // C'est ici qu'on confirme le nom à l'utilisateur
-            montant_depose: `${montant} FCFA`,
-            nouveau_solde_client: `${nouveauSolde} FCFA`
+        return res.status(200).json({
+            message: "✅ Dépôt effectué avec succès !",
+            details: {
+                titulaire: user.nom,
+                banque: bank.nom,
+                montant_depose: `${montantNet} FCFA`,
+                ancien_solde: `${soldeActuel} FCFA`,
+                nouveau_solde: `${nouveauSolde} FCFA`
+            }
         });
 
     } catch (error) {
-        if (t) await t.rollback();
-        res.status(500).json({ error: "Erreur lors du dépôt : " + error.message });
+        await t.rollback();
+        return res.status(500).json({ error: "❌ Erreur technique : " + error.message });
     }
 };
 
 // --- RETRAIT ---
 exports.withdraw = async (req, res) => {
-    // Utilisation d'une transaction pour garantir l'atomicité
-    const t = await sequelize.transaction(); 
+    const t = await sequelize.transaction();
 
     try {
-        const { telephone, codePin, montant } = req.body;
+        const { telephone, code_pin, code_agence, montant } = req.body;
 
-        // 1. Authentification avec verrouillage de ligne (lock)
-        const user = await User.findOne({
-            where: { telephone, code_pin: codePin },
-            include: [{ model: Account, as: 'Account' }],
-            transaction: t,
-            lock: t.LOCK.UPDATE // Empêche d'autres transactions de lire ce solde en même temps
-        });
-
-        if (!user) {
+        // ══ 1. VÉRIFIER LA BANQUE ══
+        const bank = await Bank.findOne({ where: { code_agence } });
+        if (!bank) {
             await t.rollback();
-            return res.status(401).json({ error: "❌ Téléphone ou code PIN incorrect" });
+            return res.status(404).json({ error: "❌ Code agence invalide." });
         }
 
-        // LA BARRIÈRE CRITIQUE
-        if (user.Account.statut !== 'ACTIF') {
+        // ══ 2. VÉRIFIER L'UTILISATEUR ══
+        const user = await User.findOne({ where: { telephone } });
+        if (!user) {
             await t.rollback();
-            return res.status(403).json({
-                error: "Accès interdit",
-                message: "Ce compte n'est plus actif. Contactez l'administrateur."
+            return res.status(404).json({ error: "❌ Numéro introuvable." });
+        }
+
+        // ══ 3. VÉRIFIER SON COMPTE DANS CETTE BANQUE ══
+        const account = await Account.findOne({
+            where: { 
+                userId: user.id, 
+                bankId: bank.id,
+                code_pin: code_pin
+            },
+            lock: t.LOCK.UPDATE // Empêche les retraits simultanés
+        });
+
+        if (!account) {
+            await t.rollback();
+            return res.status(401).json({ error: "❌ Code PIN ou code agence incorrect." });
+        }
+
+        // ══ 4. VÉRIFIER LE STATUT ══
+        if (account.statut === 'BLOQUE') {
+            await t.rollback();
+            return res.status(403).json({ 
+                error: "🔒 Ce compte est bloqué. Contactez l'administrateur." 
             });
         }
 
-        // 2. Vérification solde
-        const account = user.Account;
-        const montantRetrait = parseFloat(montant);
-        const soldeActuel = parseFloat(account.solde);
-
-        if (soldeActuel < montantRetrait) {
+        if (account.statut === 'SUPPRIME') {
             await t.rollback();
-            return res.status(400).json({ error: "❌ Solde insuffisant" });
+            return res.status(403).json({ 
+                error: "🗑️ Ce compte a été supprimé." 
+            });
         }
 
-        // 3. Mise à jour sécurisée
-        account.solde = soldeActuel - montantRetrait;
-        await account.save({ transaction: t });
+        // ══ 5. VÉRIFIER LE MONTANT ══
+        const montantNet = parseFloat(montant);
+        if (montantNet <= 0) {
+            await t.rollback();
+            return res.status(400).json({ 
+                error: "❌ Le montant doit être supérieur à 0 FCFA." 
+            });
+        }
 
-        // 4. Historique[cite: 4]
+        // ══ 6. CALCULER LES FRAIS DE RETRAIT ══
+        const fraisPourcentage = parseFloat(bank.frais_retrait); // ex: 2.0
+        const frais = parseFloat(((montantNet * fraisPourcentage) / 100).toFixed(2));
+        const montantTotal = parseFloat((montantNet + frais).toFixed(2)); // ce qui est débité
+
+        // ══ 7. VÉRIFIER LE SOLDE (montant + frais) ══
+        const soldeActuel = parseFloat(account.solde);
+        if (soldeActuel < montantTotal) {
+            await t.rollback();
+            return res.status(400).json({ 
+                error: "❌ Solde insuffisant.",
+                details: {
+                    solde_disponible: `${soldeActuel} FCFA`,
+                    montant_retrait: `${montantNet} FCFA`,
+                    frais: `${frais} FCFA (${fraisPourcentage}%)`,
+                    total_requis: `${montantTotal} FCFA`
+                }
+            });
+        }
+
+        // ══ 8. VÉRIFIER LA LIMITE DE VIREMENT ══
+        if (montantNet > parseFloat(account.limite_virement)) {
+            await t.rollback();
+            return res.status(400).json({ 
+                error: `❌ Montant dépasse votre limite de retrait de ${account.limite_virement} FCFA.`
+            });
+        }
+
+        // ══ 9. EFFECTUER LE RETRAIT ══
+        const nouveauSolde = parseFloat((soldeActuel - montantTotal).toFixed(2));
+        await account.update(
+            { solde: nouveauSolde }, 
+            { transaction: t }
+        );
+
+        // ══ 10. HISTORISER ══
         await Transaction.create({
             type: 'RETRAIT',
-            montant: montantRetrait,
+            montant: montantNet,
             expediteur_tel: telephone,
+            destinataire_tel: null,
             status: 'SUCCESS'
         }, { transaction: t });
 
-        // Validation de toutes les étapes[cite: 1]
         await t.commit();
 
-        res.json({ 
-            message: "✅ Retrait réussi", 
-            nouveau_solde: `${account.solde} FCFA` 
+        return res.status(200).json({
+            message: "✅ Retrait effectué avec succès !",
+            details: {
+                titulaire: user.nom,
+                banque: bank.nom,
+                montant_retire: `${montantNet} FCFA`,
+                frais_appliques: `${frais} FCFA (${fraisPourcentage}% - ${bank.nom})`,
+                total_debite: `${montantTotal} FCFA`,
+                ancien_solde: `${soldeActuel} FCFA`,
+                nouveau_solde: `${nouveauSolde} FCFA`
+            }
         });
 
     } catch (error) {
-        // En cas d'erreur, on annule tout[cite: 1]
-        if (t) await t.rollback();
-        res.status(500).json({ error: error.message });
+        await t.rollback();
+        return res.status(500).json({ error: "❌ Erreur technique : " + error.message });
     }
 };
 
 // Simulation RIB
 exports.getRIB = async (req, res) => {
     try {
-        const { telephone, code_pin } = req.body;
+        const { telephone } = req.body;
 
-       // 1. Vérification sécurité et récupération des données du compte
-        const user = await User.findOne({ 
-            where: { telephone, code_pin },
-            include: [{ model: Account, as: 'Account' }] 
-        });
-
-        // LA BARRIÈRE CRITIQUE (Gère l'absence d'utilisateur ET le statut)
-        if (!user || !user.Account || user.Account.statut !== 'ACTIF') {
-            return res.status(403).json({ 
-                error: "Accès interdit", 
-                message: "Identifiants incorrects ou compte inactif. Contactez l'administrateur." 
+        // ══ 1. VÉRIFIER QUE LE NUMÉRO EXISTE ══
+        const user = await User.findOne({ where: { telephone } });
+        if (!user) {
+            return res.status(404).json({ 
+                error: "❌ Numéro introuvable dans notre système." 
             });
         }
 
-        if (!user) return res.status(401).json({ error: "PIN incorrect" });
+        // ══ 2. RÉCUPÉRER TOUS LES COMPTES ACTIFS DE CET UTILISATEUR ══
+        const accounts = await Account.findAll({
+            where: { userId: user.id },
+            include: [{ model: Bank, as: 'Bank' }]
+        });
 
-        // 2. Préparation du PDF
-        const doc = new PDFDocument();
-        let filename = `RIB_${user.nom.replace(/\s/g, '_')}.pdf`;
-        
-        res.setHeader('Content-disposition', `attachment; filename="${filename}"`);
-        res.setHeader('Content-type', 'application/pdf');
+        if (!accounts || accounts.length === 0) {
+            return res.status(404).json({ 
+                error: "❌ Aucun compte trouvé pour ce numéro." 
+            });
+        }
 
-        // 3. Contenu du RIB
-        doc.fontSize(20).text('RELEVÉ D\'IDENTITÉ BANCAIRE', { align: 'center' });
-        doc.moveDown();
-        doc.fontSize(12).text(`Titulaire : ${user.nom}`);
-        doc.text(`Agence : ${user.agence}`);
-        doc.text(`Téléphone : ${user.telephone}`);
-        doc.text(`Numéro de Compte : ACC-00${user.id}`);
-        doc.moveDown();
-        doc.text(`Solde Actuel : ${user.Account.solde} FCFA`);
-        
+        // ══ 3. RÉCUPÉRER TOUTES LES TRANSACTIONS ══
+        const transactions = await Transaction.findAll({
+            where: {
+                [Op.or]: [
+                    { expediteur_tel: telephone },
+                    { destinataire_tel: telephone }
+                ]
+            },
+            order: [['createdAt', 'DESC']]
+        });
+
+        // ══ 4. GÉNÉRER LE PDF ══
+        const doc = new PDFDocument({ margin: 40, size: 'A4' });
+        const filename = `RIB_${user.nom.replace(/\s/g, '_')}.pdf`;
+
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.setHeader('Content-Type', 'application/pdf');
         doc.pipe(res);
+
+        // ── HEADER ──────────────────────────────────────────
+        doc.rect(0, 0, 595, 80).fill('#1565C0');
+        doc.fillColor('white')
+           .fontSize(22)
+           .font('Helvetica-Bold')
+           .text('RELEVÉ D\'IDENTITÉ BANCAIRE', 40, 20, { align: 'center' });
+        doc.fontSize(11)
+           .font('Helvetica')
+           .text('Système de Gestion Bancaire — Université de Yaoundé I', 40, 50, { align: 'center' });
+
+        // ── INFOS PERSONNELLES ───────────────────────────────
+        doc.moveDown(3);
+        doc.rect(40, 95, 515, 25).fill('#E3F2FD');
+        doc.fillColor('#1565C0')
+           .fontSize(13)
+           .font('Helvetica-Bold')
+           .text('INFORMATIONS PERSONNELLES', 50, 101);
+
+        doc.fillColor('#212121').fontSize(11).font('Helvetica');
+        doc.moveDown(0.5);
+        doc.text(`Titulaire       : ${user.nom}`, 50);
+        doc.text(`Téléphone       : ${user.telephone}`);
+        doc.text(`Email           : ${user.email}`);
+        doc.text(`Date du relevé  : ${new Date().toLocaleDateString('fr-FR')}`);
+
+        // ── COMPTES BANCAIRES ────────────────────────────────
+        doc.moveDown(1);
+        doc.rect(40, doc.y, 515, 25).fill('#1565C0');
+        doc.fillColor('white')
+           .fontSize(13)
+           .font('Helvetica-Bold')
+           .text('MES COMPTES BANCAIRES', 50, doc.y + 6);
+
+        doc.moveDown(1.5);
+        accounts.forEach((account, index) => {
+            const bgColor = index % 2 === 0 ? '#F5F5F5' : '#FFFFFF';
+            const statutColor = account.statut === 'ACTIF' ? '#2E7D32' : '#C62828';
+
+            doc.rect(40, doc.y, 515, 55).fill(bgColor).stroke('#E0E0E0');
+
+            doc.fillColor('#1565C0')
+               .fontSize(11)
+               .font('Helvetica-Bold')
+               .text(`${account.Bank ? account.Bank.nom : 'Banque inconnue'}`, 50, doc.y + 5);
+
+            doc.fillColor('#212121')
+               .fontSize(10)
+               .font('Helvetica')
+               .text(`N° Compte  : ACC-${String(account.id).padStart(4, '0')}`, 50, doc.y + 2);
+
+            doc.text(`Solde      : ${parseFloat(account.solde).toLocaleString('fr-FR')} FCFA`, 50);
+
+            doc.fillColor(statutColor)
+               .text(`Statut     : ${account.statut}`, 50);
+
+            doc.fillColor('#212121')
+               .text(`Limite virement : ${parseFloat(account.limite_virement).toLocaleString('fr-FR')} FCFA`, 50);
+
+            doc.moveDown(0.8);
+        });
+
+        // ── COMPTES BANCAIRES ────────────────────────────────
+        accounts.forEach((account, index) => {
+            const bgColor = index % 2 === 0 ? '#F5F5F5' : '#FFFFFF';
+
+            doc.rect(40, doc.y, 515, 55).fill(bgColor).stroke('#E0E0E0');
+
+            doc.fillColor('#1565C0')
+            .fontSize(11)
+            .font('Helvetica-Bold')
+            .text(`${account.Bank ? account.Bank.nom : 'Banque inconnue'}`, 50, doc.y + 5);
+
+            // ══ BLOQUÉ → message rouge, pas d'infos ══
+            if (account.statut === 'BLOQUE') {
+                doc.fillColor('#C62828')
+                .fontSize(10)
+                .font('Helvetica-Bold')
+                .text('🔒 COMPTE BLOQUÉ — Contactez l\'administrateur.', 50);
+                doc.moveDown(0.8);
+                return;
+            }
+
+            // ══ SUPPRIMÉ → message gris, pas d'infos ══
+            if (account.statut === 'SUPPRIME') {
+                doc.fillColor('#757575')
+                .fontSize(10)
+                .font('Helvetica-Bold')
+                .text('🗑️ COMPTE SUPPRIMÉ — Ce compte est archivé.', 50);
+                doc.moveDown(0.8);
+                return;
+            }
+
+            // ══ ACTIF → on affiche toutes les infos ══
+            doc.fillColor('#212121')
+            .fontSize(10)
+            .font('Helvetica')
+            .text(`N° Compte       : ACC-${String(account.id).padStart(4, '0')}`, 50);
+            doc.text(`Solde           : ${parseFloat(account.solde).toLocaleString('fr-FR')} FCFA`);
+            doc.fillColor('#2E7D32')
+            .text(`Statut          : ACTIF`);
+            doc.fillColor('#212121')
+            .text(`Limite virement : ${parseFloat(account.limite_virement).toLocaleString('fr-FR')} FCFA`);
+
+            doc.moveDown(0.8);
+        });
+        // ── FOOTER ───────────────────────────────────────────
+        doc.rect(0, 780, 595, 60).fill('#1565C0');
+        doc.fillColor('white')
+           .fontSize(9)
+           .font('Helvetica')
+           .text(
+               'Document généré automatiquement — Confidentiel — Ne pas divulguer',
+               40, 795, { align: 'center' }
+           );
+        doc.text(
+            `Généré le ${new Date().toLocaleString('fr-FR')}`,
+            40, 810, { align: 'center' }
+        );
+
         doc.end();
 
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        return res.status(500).json({ 
+            error: "❌ Erreur génération RIB : " + error.message 
+        });
     }
 };
 
-// --- CLÔTURE (Harmonisé avec Swagger) ---
 exports.closeAccount = async (req, res) => {
     try {
-        const { telephone, codePin } = req.body;
+        const { telephone, code_pin, code_agence } = req.body;
 
-        // 1. Authentification ET récupération du compte
-        const user = await User.findOne({ 
-            where: { telephone, code_pin: codePin },
-            include: [{ model: Account, as: 'Account' }] 
-        });
-
-        // 2. LA BARRIÈRE CRITIQUE
-        // On vérifie si l'utilisateur existe et si son compte est déjà actif
-        if (!user || !user.Account || user.Account.statut !== 'ACTIF') {
-            return res.status(403).json({ 
-                error: "Accès interdit", 
-                message: "Identifiants incorrects ou compte déjà inactif/clôturé." 
+        // ══ 1. VÉRIFIER LA BANQUE ══
+        const bank = await Bank.findOne({ where: { code_agence } });
+        if (!bank) {
+            return res.status(404).json({ 
+                error: "❌ Code agence invalide." 
             });
         }
 
-        // 3. Changement de statut (Soft Delete)[cite: 4]
-        // Utilise 'BLOQUE' ou 'SUPPRIME' selon ta logique métier
-        await Account.update(
-            { statut: 'SUPPRIME' }, 
-            { where: { userId: user.id } }
-        );
+        // ══ 2. VÉRIFIER L'UTILISATEUR ══
+        const user = await User.findOne({ where: { telephone } });
+        if (!user) {
+            return res.status(404).json({ 
+                error: "❌ Numéro introuvable." 
+            });
+        }
 
-        res.json({ 
-            message: "⚠️ Compte clôturé (archivé) avec succès." 
+        // ══ 3. VÉRIFIER SON COMPTE DANS CETTE BANQUE ══
+        const account = await Account.findOne({
+            where: { 
+                userId: user.id, 
+                bankId: bank.id,
+                code_pin: code_pin
+            }
+        });
+
+        if (!account) {
+            return res.status(401).json({ 
+                error: "❌ Code PIN ou code agence incorrect." 
+            });
+        }
+
+        // ══ 4. VÉRIFIER LE STATUT ══
+        if (account.statut === 'BLOQUE') {
+            return res.status(403).json({ 
+                error: "🔒 Ce compte est déjà bloqué. Contactez l'administrateur." 
+            });
+        }
+
+        if (account.statut === 'SUPPRIME') {
+            return res.status(403).json({ 
+                error: "🗑️ Ce compte est déjà clôturé." 
+            });
+        }
+
+        // ══ 5. CLÔTURER → statut passe à SUPPRIME ══
+        await account.update({ statut: 'SUPPRIME' });
+
+        return res.status(200).json({ 
+            message: "✅ Compte clôturé avec succès.",
+            details: {
+                titulaire: user.nom,
+                banque: bank.nom,
+                statut: "SUPPRIME",
+                info: "Vos données sont conservées en archive."
+            }
         });
 
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        return res.status(500).json({ error: "❌ Erreur : " + error.message });
     }
 };

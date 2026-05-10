@@ -57,7 +57,6 @@ module.exports = User;
 
 const Account = require('./Account'); 
 User.hasOne(Account, { foreignKey: 'userId', as: 'Account' });
-module.exports = User;
 
 const Bank = require('./Bank');
 

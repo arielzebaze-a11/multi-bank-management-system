@@ -9,7 +9,7 @@ app.use(express.json());
 
 // Configuration complète de Swagger (Zéro crash)
 const swaggerDocs = {
-  openapi: '2.0.0',
+  openapi: '3.0.0',
   info: {
     title: 'SYSTEME DE GESTION BANCAIRE - Multi-banque',
     version: '2.0.0',
@@ -299,7 +299,7 @@ const swaggerDocs = {
       }
     },
 
-    // Dans ton fichier server.js (partie Swagger)
+    
     '/api/account/rib': {
       post: {
         tags: ['Utilisateur (Client)'],
@@ -459,24 +459,6 @@ const swaggerDocs = {
       }
     },
 
-    // '/api/admin/settings': {
-    //   put: { 
-    //     tags: ['Administration'], 
-    //     summary: 'Définir plafonds et frais bancaires',
-    //     requestBody: {
-    //       required: true,
-    //       content: { 'application/json': { schema: {
-    //         type: 'object',
-    //         properties: {
-    //           plafond_virement: { type: 'number', example: 1000000 },
-    //           frais_retrait_pourcentage: { type: 'number', example: 1.5 }
-    //         }
-    //       }}}
-    //     },
-    //     responses: { 200: { description: 'Paramètres mis à jour' } } 
-    //   }
-    // },
-
     '/api/admin/account/set-limit': {
       put: { 
         tags: ['Administration'], 
@@ -540,26 +522,39 @@ const swaggerDocs = {
       }
     },
 
-// Ajoute ce bloc pour le rôle[cite: 10]
-'/api/admin/update-role': {
-  put: { 
-    tags: ['Administration'], 
-    summary: 'Changer le rôle (USER / ADMIN)',
-    requestBody: {
-      required: true,
-      content: { 'application/json': { schema: {
-        type: 'object',
-        properties: {
-          userId: { type: 'integer', example: 1 },
-          newRole: { type: 'string', enum: ['CLIENT', 'ADMIN'], example: 'ADMIN' }
-        }
-      }}}
+    '/api/admin/update-role': {
+      put: { 
+        tags: ['Administration'], 
+        summary: 'Changer le rôle d\'un utilisateur (CLIENT / ADMIN)',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['userId', 'newRole'],
+                properties: {
+                  userId: { type: 'integer', example: 1 },
+                  newRole: { 
+                    type: 'string', 
+                    enum: ['CLIENT', 'ADMIN'], 
+                    example: 'ADMIN' 
+                  }
+                }
+              }
+            }
+          }
+        },
+        responses: { 
+          200: { description: '✅ Rôle mis à jour avec succès' },
+          400: { description: '❌ Rôle invalide ou déjà identique' },
+          404: { description: '❌ Utilisateur introuvable' },
+          500: { description: 'Erreur serveur' }
+        } 
+      }
     },
-    responses: { 200: { description: 'Rôle mis à jour' } } 
-  }
-}
-  }
-};
+    }
+  };
 
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 app.use('/api', apiRoutes);

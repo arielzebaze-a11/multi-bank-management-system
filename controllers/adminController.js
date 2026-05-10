@@ -169,28 +169,50 @@ exports.deleteUser = async (req, res) => {
 // 9. Changer le rôle d'un utilisateur (Promouvoir en ADMIN)
 exports.changeUserRole = async (req, res) => {
     try {
-        const { userId, newRole } = req.body; // newRole peut être 'ADMIN' ou 'CLIENT'
+        const { userId, newRole } = req.body;
 
-        // On vérifie si l'utilisateur existe
-        const user = await User.findByPk(userId);
-        
-        if (!user) {
-            return res.status(404).json({ error: "Utilisateur non trouvé" });
+        // ══ 1. VÉRIFIER QUE LE RÔLE EST VALIDE ══
+        if (!['CLIENT', 'ADMIN'].includes(newRole)) {
+            return res.status(400).json({ 
+                error: "❌ Rôle invalide. Utilisez 'CLIENT' ou 'ADMIN'." 
+            });
         }
 
-        // Mise à jour du rôle
+        // ══ 2. VÉRIFIER QUE L'UTILISATEUR EXISTE ══
+        const user = await User.findByPk(userId);
+        if (!user) {
+            return res.status(404).json({ 
+                error: "❌ Utilisateur non trouvé." 
+            });
+        }
+
+        // ══ 3. VÉRIFIER SI RÔLE DÉJÀ IDENTIQUE ══
+        if (user.role === newRole) {
+            return res.status(400).json({ 
+                error: `❌ Cet utilisateur a déjà le rôle ${newRole}.` 
+            });
+        }
+
+        // ══ 4. METTRE À JOUR ══
+        const ancienRole = user.role;
         await user.update({ role: newRole });
 
-        res.json({ 
-            message: `✅ Le rôle de ${user.nom} a été mis à jour avec succès en ${newRole}.`,
-            user: {
-                id: user.id,
+        return res.status(200).json({ 
+            message: `✅ Rôle mis à jour avec succès.`,
+            details: {
+                userId: user.id,
                 nom: user.nom,
-                role: user.role
+                telephone: user.telephone,
+                email: user.email,
+                ancien_role: ancienRole,
+                nouveau_role: newRole
             }
         });
+
     } catch (error) {
-        res.status(500).json({ error: "Erreur lors du changement de rôle : " + error.message });
+        return res.status(500).json({ 
+            error: "❌ Erreur changement de rôle : " + error.message 
+        });
     }
 };
 

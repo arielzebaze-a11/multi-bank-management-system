@@ -556,29 +556,10 @@ const swaggerDocs = {
     }
   };
 
-
-  app.use('/api-docs', express.static('node_modules/swagger-ui-dist'));
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 app.use('/api', apiRoutes);
 
 const PORT = process.env.PORT || 3000;
-
-// Redirection routes inexistantes → doc Swagger
-app.use((req, res) => {
-    res.redirect('/api-docs');
-});
-
-// ══ ANTI-SLEEP RENDER FREE PLAN ══
-const https = require('https');
-const RENDER_URL = 'https://bank-api-v2-wmp3.onrender.com/api-docs';
-
-setInterval(() => {
-    https.get(RENDER_URL, (res) => {
-        console.log(`🏓 Ping anti-sleep : ${res.statusCode}`);
-    }).on('error', (err) => {
-        console.log(`⚠️ Ping échoué : ${err.message}`);
-    });
-}, 14 * 60 * 1000);
 
 // Fonction de démarrage
 async function startServer() {
@@ -587,6 +568,8 @@ async function startServer() {
         await sequelize.authenticate();
         console.log('✅ Connecté à PostgreSQL sur Neon');
 
+        // AJOUTE CETTE LIGNE ICI :
+        // alter: true permet de mettre à jour les tables si tu modifies tes modèles
         await sequelize.sync(); 
         console.log('✅ Tables synchronisées avec succès');
         
@@ -602,5 +585,25 @@ async function startServer() {
         process.exit(1);
     }
 }
+
+// Capture les routes inexistantes et renvoie vers la doc Swagger
+app.use((req, res, next) => {
+    if (req.headers['x-forwarded-proto'] !== 'https' && process.env.NODE_ENV === 'production') {
+        return res.redirect('https://' + req.headers.host + req.url);
+    }
+    next();
+});
+
+// ══ ANTI-SLEEP RENDER FREE PLAN ══
+const https = require('https');
+const RENDER_URL = 'https://bank-api-v2-wmp3.onrender.com/api-docs';
+
+setInterval(() => {
+    https.get(RENDER_URL, (res) => {
+        console.log(`🏓 Ping anti-sleep : ${res.statusCode}`);
+    }).on('error', (err) => {
+        console.log(`⚠️ Ping échoué : ${err.message}`);
+    });
+}, 14 * 60 * 1000); // toutes les 14 minutes
 
 startServer();

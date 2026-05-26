@@ -1,8 +1,8 @@
+require('dotenv').config();
 const express = require('express');
 const swaggerUi = require('swagger-ui-express');
 const sequelize = require('./config/db');
 const apiRoutes = require('./routes/api');
-require('dotenv').config();
 
 const app = express();
 app.use(express.json());
@@ -581,7 +581,7 @@ async function startServer() {
         server.keepAliveTimeout = 60000; 
 
     } catch (err) {
-        console.error('❌ Erreur fatale au démarrage:', err.message);
+        console.error('❌ Erreur fatale au démarrage:', err);
         process.exit(1);
     }
 }
@@ -606,4 +606,25 @@ setInterval(() => {
     });
 }, 14 * 60 * 1000); // toutes les 14 minutes
 
+const { Pool } = require('pg');
+const keepAlive = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+setInterval(async () => {
+    try {
+        await keepAlive.query('SELECT 1');
+        console.log('🟢 Neon keep-alive OK');
+    } catch(e) {
+        console.log('🔴 Neon keep-alive failed:', e.message);
+    }
+}, 4 * 60 * 1000); // toutes les 4 minutes
+
+process.on('uncaughtException', (err) => {
+    console.error('⚠️ Erreur non gérée:', err.message);
+});
+
+process.on('unhandledRejection', (reason) => {
+    console.error('⚠️ Promise rejetée:', reason);
+});
+
 startServer();
+
+//psql "$(node -e "require('dotenv').config(); console.log(process.env.DATABASE_URL)")" -c "SELECT 1;" && sleep 2 && node server.js

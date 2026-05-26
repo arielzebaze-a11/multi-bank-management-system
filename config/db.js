@@ -1,5 +1,5 @@
-const { Sequelize } = require('sequelize');
 require('dotenv').config();
+const { Sequelize } = require('sequelize');
 
 const sequelize = new Sequelize(process.env.DATABASE_URL, {
   dialect: 'postgres',
@@ -7,17 +7,23 @@ const sequelize = new Sequelize(process.env.DATABASE_URL, {
   dialectOptions: {
     ssl: {
       require: true,
-      rejectUnauthorized: false // Indispensable pour éviter les blocages de certificats sur Ubuntu
-    }
+      rejectUnauthorized: false
+    },
+    connectTimeout: 60000,
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 10000
   },
   pool: {
-    max: 5,
+    max: 3,
     min: 0,
-    acquire: 30000, // Temps max pour établir une connexion (30s)
-    idle: 10000
+    acquire: 60000,
+    idle: 10000,
+    evict: 10000
   },
-  logging: false // Pour ne pas polluer ton terminal
+  retry: {
+    max: 5
+  },
+  logging: false
 });
-ssl: true
 
 module.exports = sequelize;

@@ -1,8 +1,11 @@
 const User = require('../models/User');
 const Account = require('../models/Account');
-const Bank = require('../models/Bank'); // Ajout du modèle Bank
+const Bank = require('../models/Bank');
+const mailer = require('../config/mailer'); // ← Import du mailer
 
+// ─────────────────────────────────────────────────────────
 // 1. INSCRIPTION
+// ─────────────────────────────────────────────────────────
 exports.register = async (req, res) => {
     try {
         const { nom, email, telephone, code_pin, code_agence } = req.body;
@@ -15,7 +18,35 @@ exports.register = async (req, res) => {
             });
         }
 
-        // 2. Vérifier si l'utilisateur existe déjà
+        // ── Vérification de l'email ─────────────────────────────────────────────
+        // Cas A : L'email est absent ou mal formaté → on bloque directement
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            return res.status(400).json({
+                error: "❌ Adresse email invalide ou manquante."
+            });
+        }
+
+        // Cas B : L'email est déjà utilisé par un AUTRE utilisateur (téléphone différent)
+        const existingEmailUser = await User.findOne({ where: { email } });
+        if (existingEmailUser && existingEmailUser.telephone !== telephone) {
+            // On tente d'envoyer un email d'erreur à l'adresse fournie
+            try {
+                await mailer.sendEmailErrorNotification(
+                    email,
+                    bank.nom,
+                    "Cette adresse email est déjà associée à un autre compte dans notre système."
+                );
+            } catch (mailErr) {
+                console.error("⚠️  Erreur envoi email d'erreur :", mailErr.message);
+            }
+
+            return res.status(409).json({ 
+                error: "❌ Cette adresse email est déjà utilisée par un autre compte." 
+            });
+        }
+        // ────────────────────────────────────────────────────────────────────────
+
+        // 2. Vérifier si l'utilisateur existe déjà (par téléphone)
         let user = await User.findOne({ where: { telephone } });
 
         if (user) {
@@ -28,6 +59,17 @@ exports.register = async (req, res) => {
 
                 // ❌ Compte ACTIF → déjà inscrit dans cette banque
                 if (existingAccount.statut === 'ACTIF') {
+                    // Email d'erreur : compte déjà actif
+                    try {
+                        await mailer.sendEmailErrorNotification(
+                            user.email,
+                            bank.nom,
+                            `Vous possédez déjà un compte actif chez ${bank.nom}. Une seule inscription par banque est autorisée.`
+                        );
+                    } catch (mailErr) {
+                        console.error("⚠️  Erreur envoi email d'erreur :", mailErr.message);
+                    }
+
                     return res.status(400).json({ 
                         error: `❌ Vous avez déjà un compte actif chez ${bank.nom}.` 
                     });
@@ -35,6 +77,16 @@ exports.register = async (req, res) => {
 
                 // ❌ Compte BLOQUÉ → contacter admin
                 if (existingAccount.statut === 'BLOQUE') {
+                    try {
+                        await mailer.sendEmailErrorNotification(
+                            user.email,
+                            bank.nom,
+                            `Votre compte chez ${bank.nom} est actuellement bloqué. Veuillez contacter votre administrateur.`
+                        );
+                    } catch (mailErr) {
+                        console.error("⚠️  Erreur envoi email d'erreur :", mailErr.message);
+                    }
+
                     return res.status(403).json({ 
                         error: `🔒 Votre compte chez ${bank.nom} est bloqué. Contactez l'administrateur.` 
                     });
@@ -49,6 +101,18 @@ exports.register = async (req, res) => {
                         solde: 0.00,
                         statut: 'ACTIF'
                     });
+
+                    // ✅ Email de confirmation : nouveau compte après archivage
+                    try {
+                        await mailer.sendAccountCreatedEmail(
+                            user.email,
+                            user.nom,
+                            bank.nom,
+                            newAccount.id
+                        );
+                    } catch (mailErr) {
+                        console.error("⚠️  Erreur envoi email de confirmation :", mailErr.message);
+                    }
 
                     return res.status(201).json({ 
                         message: `✅ Ancien compte archivé. Nouveau compte créé chez ${bank.nom} !`,
@@ -66,6 +130,18 @@ exports.register = async (req, res) => {
                 solde: 0.00,
                 statut: 'ACTIF'
             });
+
+            // ✅ Email de confirmation
+            try {
+                await mailer.sendAccountCreatedEmail(
+                    user.email,
+                    user.nom,
+                    bank.nom,
+                    newAccount.id
+                );
+            } catch (mailErr) {
+                console.error("⚠️  Erreur envoi email de confirmation :", mailErr.message);
+            }
 
             return res.status(201).json({ 
                 message: `✅ Nouveau compte créé chez ${bank.nom} !`,
@@ -85,6 +161,18 @@ exports.register = async (req, res) => {
             statut: 'ACTIF'
         });
 
+        // ✅ Email de confirmation pour tout nouvel utilisateur
+        try {
+            await mailer.sendAccountCreatedEmail(
+                user.email,
+                user.nom,
+                bank.nom,
+                newAccount.id
+            );
+        } catch (mailErr) {
+            console.error("⚠️  Erreur envoi email de confirmation :", mailErr.message);
+        }
+
         res.status(201).json({
             message: `✅ Compte créé avec succès chez ${bank.nom} !`,
             accountNumber: newAccount.id,
@@ -96,7 +184,9 @@ exports.register = async (req, res) => {
     }
 };
 
+// ─────────────────────────────────────────────────────────
 // 2. LOGIN (Multi-banque)
+// ─────────────────────────────────────────────────────────
 exports.login = async (req, res) => {
     try {
         const { telephone, code_pin, code_agence } = req.body;
@@ -117,16 +207,29 @@ exports.login = async (req, res) => {
             });
         }
 
-        // 3. Chercher le compte de cet utilisateur dans CETTE banque
+        // 3. Chercher le compte de cet utilisateur dans CETTE banque avec ce PIN
         const account = await Account.findOne({ 
             where: { 
                 userId: user.id, 
                 bankId: bank.id,
-                code_pin: code_pin  // PIN vérifié ici sur le compte
+                code_pin: code_pin
             } 
         });
 
         if (!account) {
+            // ── Email d'erreur si l'utilisateur a un email enregistré ──────────
+            if (user.email) {
+                try {
+                    await mailer.sendEmailErrorNotification(
+                        user.email,
+                        bank.nom,
+                        `Tentative de connexion échouée sur votre compte chez ${bank.nom} : code PIN ou code agence incorrect.`
+                    );
+                } catch (mailErr) {
+                    console.error("⚠️  Erreur envoi email d'erreur login :", mailErr.message);
+                }
+            }
+
             return res.status(401).json({ 
                 error: "❌ Code PIN ou code agence incorrect." 
             });
@@ -134,6 +237,18 @@ exports.login = async (req, res) => {
 
         // 4. Vérification du statut
         if (account.statut === 'BLOQUE') {
+            if (user.email) {
+                try {
+                    await mailer.sendEmailErrorNotification(
+                        user.email,
+                        bank.nom,
+                        `Tentative de connexion sur votre compte bloqué chez ${bank.nom}. Contactez l'administrateur.`
+                    );
+                } catch (mailErr) {
+                    console.error("⚠️  Erreur envoi email compte bloqué :", mailErr.message);
+                }
+            }
+
             return res.status(403).json({ 
                 error: "🔒 Ce compte est bloqué. Contactez l'administrateur." 
             });
@@ -145,7 +260,20 @@ exports.login = async (req, res) => {
             });
         }
 
-        // 5. Compte ACTIF → on affiche les infos
+        // 5. Compte ACTIF → connexion réussie
+
+        // ── Email de notification de connexion ──────────────────────────────────
+        // Vérifie que l'email existe avant d'envoyer
+        if (user.email) {
+            try {
+                await mailer.sendLoginSuccessEmail(user.email, user.nom, bank.nom);
+            } catch (mailErr) {
+                // On ne bloque PAS la connexion si l'email échoue
+                console.error("⚠️  Erreur envoi email confirmation connexion :", mailErr.message);
+            }
+        }
+        // ────────────────────────────────────────────────────────────────────────
+
         res.json({
             message: "✅ Connexion réussie",
             compte: {
@@ -163,7 +291,9 @@ exports.login = async (req, res) => {
     }
 };
 
-// UPDATE : Mise à jour du profil
+// ─────────────────────────────────────────────────────────
+// 3. UPDATE PROFILE
+// ─────────────────────────────────────────────────────────
 exports.updateProfile = async (req, res) => {
     try {
         const { telephone, code_pin, nom, email, code_agence } = req.body;
@@ -189,7 +319,7 @@ exports.updateProfile = async (req, res) => {
             where: { 
                 userId: user.id, 
                 bankId: bank.id,
-                code_pin: code_pin  // PIN vérifié sur le compte
+                code_pin: code_pin
             } 
         });
 
@@ -212,7 +342,17 @@ exports.updateProfile = async (req, res) => {
             });
         }
 
-        // 5. Mise à jour des informations
+        // 5. Si un nouvel email est fourni, vérifier qu'il n'est pas déjà pris
+        if (email && email !== user.email) {
+            const emailTaken = await User.findOne({ where: { email } });
+            if (emailTaken) {
+                return res.status(409).json({
+                    error: "❌ Cette adresse email est déjà utilisée par un autre compte."
+                });
+            }
+        }
+
+        // 6. Mise à jour des informations
         if (nom) user.nom = nom;
         if (email) user.email = email;
         await user.save();

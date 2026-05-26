@@ -298,7 +298,7 @@ exports.toggleAccountStatus = async (req, res) => {
     }
 };
 
-// Pour la ligne 57 de api.js
+
 exports.getGlobalReportPDF = async (req, res) => {
     try {
         // ══ 1. RÉCUPÉRATION COMPLÈTE DES DONNÉES ══
@@ -343,10 +343,14 @@ exports.getGlobalReportPDF = async (req, res) => {
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', 'attachment; filename=Rapport_Global_SGB.pdf');
 
-        const doc = new PDFDocument({ margin: 40, size: 'A4' });
+        const doc = new PDFDocument({ margin: 40, size: 'A4', bufferPages: true });
         doc.pipe(res);
 
-        // ── HEADER ──────────────────────────────────────────
+        doc.on('error', (err) => {
+            console.error('Erreur PDF stream:', err.message);
+        });
+
+        // ── HEADER PAGE 1 ────────────────────────────────────
         doc.rect(0, 0, 595, 80).fill('#1565C0');
         doc.fillColor('white')
            .fontSize(20).font('Helvetica-Bold')
@@ -379,15 +383,15 @@ exports.getGlobalReportPDF = async (req, res) => {
            .text('2. BANQUES DU SYSTÈME', 50, doc.y + 6);
         doc.moveDown(1.5);
 
-        allBanks.forEach((bank, index) => {
-            const bgColor = index % 2 === 0 ? '#F5F5F5' : '#FFFFFF';
+        allBanks.forEach((bank) => {
+            if (doc.y > 700) { doc.addPage(); }
+
             const usersInBank = allUsers.filter(u => u.Account?.bankId === bank.id);
             const liquiditeBank = usersInBank.reduce((sum, u) => 
                 sum + parseFloat(u.Account?.solde || 0), 0);
 
-            doc.rect(40, doc.y, 515, 50).fill(bgColor).stroke('#E0E0E0');
+            doc.rect(40, doc.y, 515, 50).fill('#F5F5F5').stroke('#E0E0E0');
             const bankY = doc.y + 5;
-
             doc.fillColor('#1565C0').fontSize(11).font('Helvetica-Bold')
                .text(`${bank.nom} — ${bank.code_agence}`, 50, bankY);
             doc.fillColor('#212121').fontSize(10).font('Helvetica')
@@ -403,36 +407,36 @@ exports.getGlobalReportPDF = async (req, res) => {
            .text('3. LISTE COMPLÈTE DES UTILISATEURS', 40, 13, { align: 'center' });
         doc.moveDown(2);
 
-        // En-tête tableau users
-        doc.rect(40, doc.y, 515, 20).fill('#E3F2FD');
-        const uhY = doc.y + 5;
-        doc.fillColor('#1565C0').fontSize(9).font('Helvetica-Bold');
-        doc.text('NOM', 50, uhY);
-        doc.text('TÉLÉPHONE', 150, uhY);
-        doc.text('BANQUE', 250, uhY);
-        doc.text('SOLDE', 360, uhY);
-        doc.text('STATUT', 460, uhY);
-        doc.moveDown(1.2);
+        const drawUserHeader = () => {
+            doc.rect(40, doc.y, 515, 20).fill('#E3F2FD');
+            const hY = doc.y + 5;
+            doc.fillColor('#1565C0').fontSize(9).font('Helvetica-Bold');
+            doc.text('NOM', 50, hY);
+            doc.text('TÉLÉPHONE', 150, hY);
+            doc.text('BANQUE', 250, hY);
+            doc.text('SOLDE', 360, hY);
+            doc.text('STATUT', 460, hY);
+            doc.moveDown(1.2);
+        };
+        drawUserHeader();
 
         allUsers.forEach((u, index) => {
-            if (doc.y > 700) { doc.addPage(); }
-
+            if (doc.y > 750) {
+                doc.addPage();
+                drawUserHeader();
+            }
             const bgColor = index % 2 === 0 ? '#FAFAFA' : '#FFFFFF';
             const statutColor = u.Account?.statut === 'ACTIF' ? '#2E7D32' :
                                u.Account?.statut === 'BLOQUE' ? '#C62828' : '#757575';
-
             doc.rect(40, doc.y, 515, 18).fill(bgColor).stroke('#EEEEEE');
             const rowY = doc.y + 4;
-
             doc.fillColor('#212121').fontSize(8).font('Helvetica')
                .text(u.nom || 'N/A', 50, rowY)
                .text(u.telephone || 'N/A', 150, rowY)
                .text(u.Account?.Bank?.nom || 'N/A', 250, rowY)
                .text(u.Account ? `${parseFloat(u.Account.solde).toLocaleString('fr-FR')} FCFA` : 'N/A', 360, rowY);
-
             doc.fillColor(statutColor)
                .text(u.Account?.statut || 'N/A', 460, rowY);
-
             doc.moveDown(0.9);
         });
 
@@ -443,56 +447,71 @@ exports.getGlobalReportPDF = async (req, res) => {
            .text('4. HISTORIQUE COMPLET DES TRANSACTIONS', 40, 13, { align: 'center' });
         doc.moveDown(2);
 
-        // En-tête tableau transactions
-        doc.rect(40, doc.y, 515, 20).fill('#E3F2FD');
-        const thY = doc.y + 5;
-        doc.fillColor('#1565C0').fontSize(9).font('Helvetica-Bold');
-        doc.text('DATE', 50, thY);
-        doc.text('TYPE', 130, thY);
-        doc.text('MONTANT', 200, thY);
-        doc.text('EXPÉDITEUR', 290, thY);
-        doc.text('DESTINATAIRE', 390, thY);
-        doc.text('STATUT', 490, thY);
-        doc.moveDown(1.2);
+        const drawTransacHeader = () => {
+            doc.rect(40, doc.y, 515, 20).fill('#E3F2FD');
+            const hY = doc.y + 5;
+            doc.fillColor('#1565C0').fontSize(9).font('Helvetica-Bold');
+            doc.text('DATE', 50, hY);
+            doc.text('TYPE', 130, hY);
+            doc.text('MONTANT', 200, hY);
+            doc.text('EXPÉDITEUR', 290, hY);
+            doc.text('DESTINATAIRE', 390, hY);
+            doc.text('STATUT', 490, hY);
+            doc.moveDown(1.2);
+        };
+        drawTransacHeader();
 
         allTransac.forEach((t, index) => {
-            if (doc.y > 700) { doc.addPage(); }
-
+            if (doc.y > 750) {
+                doc.addPage();
+                drawTransacHeader();
+            }
             const bgColor = index % 2 === 0 ? '#FAFAFA' : '#FFFFFF';
             const typeColor = t.type === 'VIREMENT' ? '#1565C0' :
                              t.type === 'DEPOT' ? '#2E7D32' : '#E65100';
-
             doc.rect(40, doc.y, 515, 18).fill(bgColor).stroke('#EEEEEE');
             const rowY = doc.y + 4;
-
             doc.fillColor(typeColor).fontSize(8).font('Helvetica-Bold')
                .text(t.type, 130, rowY);
-
             doc.fillColor('#212121').fontSize(8).font('Helvetica')
                .text(new Date(t.createdAt).toLocaleDateString('fr-FR'), 50, rowY)
                .text(`${parseFloat(t.montant).toLocaleString('fr-FR')} FCFA`, 200, rowY)
                .text(t.Expediteur ? t.Expediteur.nom : (t.expediteur_tel || 'Système'), 290, rowY)
                .text(t.Destinataire ? t.Destinataire.nom : (t.destinataire_tel || 'Système'), 390, rowY)
                .text(t.status, 490, rowY);
-
             doc.moveDown(0.9);
         });
 
-        // ── FOOTER ───────────────────────────────────────────
-        doc.rect(0, 780, 595, 60).fill('#1565C0');
-        doc.fillColor('white').fontSize(9).font('Helvetica')
-           .text('Document confidentiel — Réservé à l\'administration — SGB Université de Yaoundé I',
-               40, 795, { align: 'center' })
-           .text(`Généré le ${new Date().toLocaleString('fr-FR')}`, 40, 810, { align: 'center' });
+        // ══ FOOTERS sur toutes les pages ══
+        const range = doc.bufferedPageRange();
+        const dateStr = new Date().toLocaleString('fr-FR');
 
+        for (let i = range.start; i < range.start + range.count; i++) {
+            doc.switchToPage(i);
+            const y = doc.page.height - 50;
+            doc.save();
+            doc.rect(0, y, doc.page.width, 50).fill('#1565C0');
+            doc.fillColor('white').fontSize(8).font('Helvetica')
+               .text("Document confidentiel — SGB Université de Yaoundé I",
+                   40, y + 10, { align: 'center', width: 515 })
+               .text(`Généré le ${dateStr}`,
+                   40, y + 24, { align: 'center', width: 515 });
+            doc.restore();
+        }
+
+        doc.flushPages();
         doc.end();
 
     } catch (error) {
-        return res.status(500).json({ 
-            error: "❌ Erreur génération PDF : " + error.message 
-        });
+        console.error('Erreur PDF:', error.message);
+        if (!res.headersSent) {
+            return res.status(500).json({ 
+                error: "❌ Erreur génération PDF : " + error.message 
+            });
+        }
     }
 };
+
 
 exports.updateAccountStatus = async (req, res) => {
     try {

@@ -12,7 +12,7 @@ const swaggerDocs = {
   openapi: '3.0.0',
   info: {
     title: 'SYSTEME DE GESTION BANCAIRE : Multi-banque',
-    version: '1.0.0',
+    version: '1.2.0',
     description: 'API - Multi-banque avec gestion complète des comptes, transactions et administration',
   },
   tags: [

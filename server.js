@@ -552,62 +552,37 @@ const swaggerDocs = {
           500: { description: 'Erreur serveur' }
         } 
       }
-    },
+    }
     }
   };
 
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 app.use('/api', apiRoutes);
 
-const PORT = process.env.PORT || 3000;
-
-// Fonction de démarrage
-async function startServer() {
-    try {
-        console.log('⏳ Connexion à la base de données...');
-        await sequelize.authenticate();
-        console.log('✅ Connecté à PostgreSQL sur Neon');
-
-        // AJOUTE CETTE LIGNE ICI :
-        // alter: true permet de mettre à jour les tables si tu modifies tes modèles
-        await sequelize.sync(); 
-        console.log('✅ Tables synchronisées avec succès');
-        
-        const server = app.listen(PORT, '0.0.0.0', () => {
-            console.log(`🚀 Serveur actif sur le port ${PORT}`);
-            console.log(`📖 Documentation : http://0.0.0.0:${PORT}/api-docs`);
-        });
-
-        server.keepAliveTimeout = 60000; 
-
-    } catch (err) {
-        console.error('❌ Erreur fatale au démarrage:', err);
-        process.exit(1);
-    }
-}
-
-// Capture les routes inexistantes et renvoie vers la doc Swagger
-app.use((req, res, next) => {
-    if (req.headers['x-forwarded-proto'] !== 'https' && process.env.NODE_ENV === 'production') {
-        return res.redirect('https://' + req.headers.host + req.url);
-    }
-    next();
+// Redirection routes inexistantes
+app.use((req, res) => {
+    res.redirect('/api-docs');
 });
 
-// ══ ANTI-SLEEP RENDER FREE PLAN ══
+const PORT = process.env.PORT || 3000;
+
+// ══ ANTI-SLEEP ══
 const https = require('https');
 const RENDER_URL = 'https://bank-api-v2-wmp3.onrender.com/api-docs';
-
 setInterval(() => {
     https.get(RENDER_URL, (res) => {
-        console.log(`🏓 Ping anti-sleep : ${res.statusCode}`);
+        console.log(`🏓 Ping : ${res.statusCode}`);
     }).on('error', (err) => {
         console.log(`⚠️ Ping échoué : ${err.message}`);
     });
-}, 14 * 60 * 1000); // toutes les 14 minutes
+}, 14 * 60 * 1000);
 
+// ══ NEON KEEP-ALIVE ══
 const { Pool } = require('pg');
-const keepAlive = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+const keepAlive = new Pool({ 
+    connectionString: process.env.DATABASE_URL, 
+    ssl: { rejectUnauthorized: false } 
+});
 setInterval(async () => {
     try {
         await keepAlive.query('SELECT 1');
@@ -615,7 +590,7 @@ setInterval(async () => {
     } catch(e) {
         console.log('🔴 Neon keep-alive failed:', e.message);
     }
-}, 4 * 60 * 1000); // toutes les 4 minutes
+}, 4 * 60 * 1000);
 
 process.on('uncaughtException', (err) => {
     console.error('⚠️ Erreur non gérée:', err.message);
@@ -624,6 +599,26 @@ process.on('uncaughtException', (err) => {
 process.on('unhandledRejection', (reason) => {
     console.error('⚠️ Promise rejetée:', reason);
 });
+
+async function startServer() {
+    try {
+        console.log('⏳ Connexion à la base de données...');
+        await sequelize.authenticate();
+        console.log('✅ Connecté à PostgreSQL sur Neon');
+        await sequelize.sync(); 
+        console.log('✅ Tables synchronisées avec succès');
+        
+        const server = app.listen(PORT, '0.0.0.0', () => {
+            console.log(`🚀 Serveur actif sur le port ${PORT}`);
+            console.log(`📖 Documentation : http://0.0.0.0:${PORT}/api-docs`);
+        });
+        server.keepAliveTimeout = 60000; 
+
+    } catch (err) {
+        console.error('❌ Erreur fatale au démarrage:', err);
+        process.exit(1);
+    }
+}
 
 startServer();
 

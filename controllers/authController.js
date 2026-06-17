@@ -2,6 +2,7 @@ const User = require('../models/User');
 const Account = require('../models/Account');
 const Bank = require('../models/Bank');
 const mailer = require('../config/mailer'); // ← Import du mailer
+const jwt = require("jsonwebtoken");
 
 // ─────────────────────────────────────────────────────────
 // 1. INSCRIPTION
@@ -274,8 +275,21 @@ exports.login = async (req, res) => {
         }
         // ────────────────────────────────────────────────────────────────────────
 
+        const token = jwt.sign({
+            userId: user.id,
+            role: user.role,
+            telephone: user.telephone,
+            bankId: bank.id,
+            accountId: account.id
+        },
+        process.env.JWT_SECRET,
+        {
+            expiresIn: "24h"
+        }
+        );
+
         res.json({
-            message: "✅ Connexion réussie",
+            message: "✅ Connexion réussie", token,
             compte: {
                 id: account.id,
                 banque: bank.nom,

@@ -3,6 +3,8 @@ const router = express.Router();
 const authCtrl = require('../controllers/authController');
 const transacCtrl = require('../controllers/transactionController');
 const adminCtrl = require('../controllers/adminController');
+const authMiddleware = require('../middlewares/authMiddleware');
+const roleMiddleware = require('../middlewares/roleMiddleware');
 
 // --- AUTHENTIFICATION ---
 router.post('/auth/register', authCtrl.register);
@@ -20,18 +22,65 @@ router.post('/account/rib', transacCtrl.getRIB);
 router.delete('/account/close', transacCtrl.closeAccount);
 
 // --- ADMINISTRATION ---[cite: 9]
-router.get('/admin/users', adminCtrl.getAllUsers); // Récupère tous les users[cite: 9]
-router.get('/admin/transactions', adminCtrl.getAllTransactions); // Historique global[cite: 9]
+// Récupère tous les users
+router.get(
+    '/admin/users',
+    authMiddleware,
+    roleMiddleware('ADMIN'),
+    adminCtrl.getAllUsers
+);
 
-// Ligne 41 : Mise à jour directe du statut[cite: 9]
-router.put('/admin/account/status', adminCtrl.updateAccountStatus); 
+// Historique global
+router.get(
+    '/admin/transactions',
+    authMiddleware,
+    roleMiddleware('ADMIN'),
+    adminCtrl.getAllTransactions
+);
 
-// Ligne 44 : Définir le plafond (ex: 1 milliard)[cite: 9]
-router.put('/admin/account/set-limit', adminCtrl.updateAccountLimit);
+router.put(
+    '/admin/account/status',
+    authMiddleware,
+    roleMiddleware('ADMIN'),
+    adminCtrl.updateAccountStatus
+); 
 
-router.delete('/admin/user/:userId', adminCtrl.deleteUser); // Suppression logique[cite: 9]
-router.get('/admin/reports/global', adminCtrl.getGlobalReportPDF); // Rapport financier[cite: 9]
-router.put('/admin/update-role', adminCtrl.changeUserRole); // CLIENT <-> ADMIN[cite: 9]
-router.put('/admin/compte/statut', adminCtrl.toggleAccountStatus); // Toggle BLOQUER/DEBLOQUER[cite: 9]
+router.put(
+    '/admin/account/set-limit',
+    authMiddleware,
+    roleMiddleware('ADMIN'),
+    adminCtrl.updateAccountLimit
+);
+
+ // Suppression logique
+router.delete(
+    '/admin/user/:userId', 
+    authMiddleware,
+    roleMiddleware('ADMIN'),
+    adminCtrl.deleteUser
+);
+
+router.get(
+    '/admin/reports/global', 
+    authMiddleware,
+    roleMiddleware('ADMIN'),
+    adminCtrl.getGlobalReportPDF
+); 
+
+// CLIENT <-> ADMIN
+router.put(
+    '/admin/update-role', 
+    authMiddleware,
+    roleMiddleware('ADMIN'),
+    adminCtrl.changeUserRole
+); 
+
+// Toggle BLOQUER/DEBLOQUER
+router.put(
+    '/admin/compte/statut', 
+    authMiddleware,
+    roleMiddleware('ADMIN'),
+    adminCtrl.toggleAccountStatus
+); 
 
 module.exports = router;

@@ -20,8 +20,12 @@ export default function Login() {
       });
 
       const data = response.data;
+      console.log("DATA :", data);
+      console.log("ROLE :", data.compte.role);
+      console.log("COMPTE :", data.compte);
 
       localStorage.setItem("token", data.token);
+      localStorage.setItem("compte", JSON.stringify(data.compte));
       localStorage.setItem("role", data.compte.role || "CLIENT");
 
       alert("Connexion réussie !");

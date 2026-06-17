@@ -1,15 +1,17 @@
-export default function ClientDashboard() {
+export default function AdminDashboard() {
   const compte = JSON.parse(
     localStorage.getItem("compte") || "{}"
   );
 
   return (
     <div style={{ padding: "30px" }}>
-      <h1>💳 Dashboard Client</h1>
+      <h1>🏦 Dashboard Administrateur</h1>
 
       <hr />
 
       <p><strong>Nom :</strong> {compte.user}</p>
+
+      <p><strong>Rôle :</strong> {compte.role}</p>
 
       <p><strong>Banque :</strong> {compte.banque}</p>
 

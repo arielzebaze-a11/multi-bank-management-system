@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import api from "../../services/api";
 
@@ -6,6 +7,7 @@ export default function Login() {
   const [codePin, setCodePin] = useState("");
   const [codeAgence, setCodeAgence] = useState("");
   const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,16 +22,15 @@ export default function Login() {
       });
 
       const data = response.data;
-      console.log("DATA :", data);
-      console.log("ROLE :", data.compte.role);
-      console.log("COMPTE :", data.compte);
-
       localStorage.setItem("token", data.token);
       localStorage.setItem("compte", JSON.stringify(data.compte));
       localStorage.setItem("role", data.compte.role || "CLIENT");
 
-      alert("Connexion réussie !");
-      console.log(data);
+      if (data.compte.role === "ADMIN") {
+        navigate("/admin/dashboard");
+      } else {
+        navigate("/client/dashboard");
+      }
 
     } catch (error: any) {
       console.log("Erreur complète :", error);

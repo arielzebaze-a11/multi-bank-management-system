@@ -289,16 +289,16 @@ exports.login = async (req, res) => {
         );
 
         res.json({
-        message: "✅ Connexion réussie",
-        token,
-        compte: {
-            id: compte.id,
-            banque: banque.nom,
-            solde: compte.solde,
-            user: utilisateur.nom,
-            telephone: utilisateur.telephone,
-            role: utilisateur.role
-        }
+            message: "✅ Connexion réussie",
+            token,
+            compte: {
+                id: account.id,
+                banque: bank.nom,
+                solde: account.solde,
+                user: user.nom,
+                telephone: user.telephone,
+                role: user.role
+            }
         });
 
     } catch (error) {

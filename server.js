@@ -15,6 +15,24 @@ const swaggerDocs = {
     version: '1.2.0',
     description: 'API - Multi-banque avec gestion complète des comptes, transactions et administration',
   },
+
+  components: {
+    securitySchemes: {
+      bearerAuth: {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT'
+      }
+    }
+  },
+
+  security: [
+    {
+      bearerAuth: []
+    }
+  ],
+
+  
   tags: [
     { name: 'Authentification' },
     { name: 'Utilisateur (Client)' },

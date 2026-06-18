@@ -551,6 +551,32 @@ const swaggerDocs = {
       }
     },
 
+    '/api/admin/dashboard': {
+      get: {
+        tags: ['Administration'],
+        summary: 'Statistiques globales du dashboard',
+        security: [
+          {
+            bearerAuth: []
+          }
+        ],
+        responses: {
+          200: {
+            description: 'Statistiques récupérées avec succès'
+          },
+          401: {
+            description: 'Token manquant ou invalide'
+          },
+          403: {
+            description: 'Accès réservé aux administrateurs'
+          },
+          500: {
+            description: 'Erreur serveur'
+          }
+        }
+      }
+    },
+
     '/api/admin/update-role': {
       put: { 
         tags: ['Administration'], 

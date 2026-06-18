@@ -83,4 +83,11 @@ router.put(
     adminCtrl.toggleAccountStatus
 ); 
 
+router.get(
+    '/admin/dashboard',
+    authMiddleware,
+    roleMiddleware('ADMIN'),
+    adminCtrl.getDashboardStats
+);
+
 module.exports = router;

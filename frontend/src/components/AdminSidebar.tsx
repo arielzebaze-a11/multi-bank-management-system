@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+
 export default function AdminSidebar() {
   return (
     <div
@@ -13,11 +15,13 @@ export default function AdminSidebar() {
 
       <hr />
 
-      <p>📊 Dashboard</p>
-      <p>👤 Utilisateurs</p>
-      <p>💸 Transactions</p>
-      <p>📄 Rapports</p>
-      <p>🚪 Déconnexion</p>
+      <p>
+        <Link to="/admin/dashboard">📊 Dashboard</Link>
+      </p>
+
+      <p>
+        <Link to="/admin/users">👤 Utilisateurs</Link>
+      </p>
     </div>
   );
 }

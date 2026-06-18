@@ -12,7 +12,7 @@ exports.getAllUsers = async (req, res) => {
             attributes: { exclude: ['code_pin'] }, // On cache le PIN
             include: [{
                 model: Account,
-                as: 'Account',
+                as: 'Accounts',
                 attributes: ['id', 'solde', 'statut', 'limite_virement'],
                 include: [{
                     model: Bank,
@@ -37,14 +37,16 @@ exports.getAllUsers = async (req, res) => {
                 email: u.email,
                 telephone: u.telephone,
                 role: u.role,
-                comptes: u.Account ? [{
-                    numero: `ACC-${String(u.Account.id).padStart(4, '0')}`,
-                    banque: u.Account.Bank ? u.Account.Bank.nom : 'Inconnue',
-                    code_agence: u.Account.Bank ? u.Account.Bank.code_agence : 'N/A',
-                    solde: `${parseFloat(u.Account.solde).toLocaleString('fr-FR')} FCFA`,
-                    statut: u.Account.statut,
-                    limite_virement: `${parseFloat(u.Account.limite_virement).toLocaleString('fr-FR')} FCFA`
-                }] : []
+                comptes: u.Accounts
+                ? u.Accounts.map(acc => ({
+                    numero: `ACC-${String(acc.id).padStart(4, '0')}`,
+                    banque: acc.Bank ? acc.Bank.nom : 'Inconnue',
+                    code_agence: acc.Bank ? acc.Bank.code_agence : 'N/A',
+                    solde: `${parseFloat(acc.solde).toLocaleString('fr-FR')} FCFA`,
+                    statut: acc.statut,
+                    limite_virement: `${parseFloat(acc.limite_virement).toLocaleString('fr-FR')} FCFA`
+                    }))
+                : []
             }))
         });
 
@@ -643,6 +645,37 @@ exports.updateAccountLimit = async (req, res) => {
     } catch (error) {
         return res.status(500).json({ 
             error: "❌ Erreur : " + error.message 
+        });
+    }
+};
+
+
+exports.getDashboardStats = async (req, res) => {
+    try {
+
+        const totalUsers = await User.count();
+        const totalAccounts = await Account.count();
+        const totalBanks = await Bank.count();
+        const totalTransactions = await Transaction.count();
+
+        const accounts = await Account.findAll();
+
+        const totalBalance = accounts.reduce(
+            (sum, acc) => sum + parseFloat(acc.solde || 0),
+            0
+        );
+
+        res.status(200).json({
+            users: totalUsers,
+            accounts: totalAccounts,
+            banks: totalBanks,
+            transactions: totalTransactions,
+            balance: totalBalance
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            error: error.message
         });
     }
 };

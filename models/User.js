@@ -56,9 +56,14 @@ const User = sequelize.define('User', {
 module.exports = User;
 
 const Account = require('./Account'); 
-User.hasOne(Account, { foreignKey: 'userId', as: 'Account' });
+User.hasMany(Account, { foreignKey: 'userId', as: 'Accounts' });
 
 const Bank = require('./Bank');
+
+Account.belongsTo(User, {
+    foreignKey: 'userId',
+    as: 'User'
+});
 
 // Un compte appartient à une seule banque
 Account.belongsTo(Bank, { foreignKey: 'bankId', as: 'Bank' });

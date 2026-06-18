@@ -17,10 +17,11 @@ export default function Dashboard() {
 
   const loadStats = async () => {
     try {
-
       const response = await api.get("/admin/dashboard");
 
-      console.log("Dashboard API :", response.data);
+      console.log("STATUS :", response.status);
+      console.log("URL :", response.request?.responseURL);
+      console.log("DATA :", response.data);
 
       setStats(response.data);
 

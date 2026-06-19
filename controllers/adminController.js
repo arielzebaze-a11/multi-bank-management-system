@@ -310,8 +310,11 @@ exports.getGlobalReportPDF = async (req, res) => {
             attributes: { exclude: ['code_pin'] },
             include: [{
                 model: Account,
-                as: 'Account',
-                include: [{ model: Bank, as: 'Bank' }]
+                as: 'Accounts',
+                include: [{
+                    model: Bank,
+                    as: 'Bank'
+                }]
             }]
         });
 
@@ -324,14 +327,29 @@ exports.getGlobalReportPDF = async (req, res) => {
         });
 
         // ══ 2. CALCUL DES STATISTIQUES GLOBALES ══
-        const totalLiquidite = allUsers.reduce((sum, u) => 
-            sum + parseFloat(u.Account?.solde || 0), 0);
+        const totalLiquidite = allUsers.reduce((sum, user) => {
+            const totalUser = (user.Accounts || []).reduce(
+                (s, account) => s + parseFloat(account.solde || 0),
+                0
+            );
+
+            return sum + totalUser;
+        }, 0);
         
         const stats = {
             total: allUsers.length,
-            actifs: allUsers.filter(u => u.Account?.statut === 'ACTIF').length,
-            bloques: allUsers.filter(u => u.Account?.statut === 'BLOQUE').length,
-            supprimes: allUsers.filter(u => u.Account?.statut === 'SUPPRIME').length
+
+            actifs: allUsers.filter(
+                u => u.Accounts?.some(a => a.statut === 'ACTIF')
+            ).length,
+
+            bloques: allUsers.filter(
+                u => u.Accounts?.some(a => a.statut === 'BLOQUE')
+            ).length,
+
+            supprimes: allUsers.filter(
+                u => u.Accounts?.some(a => a.statut === 'SUPPRIME')
+            ).length
         };
 
         const statsTransac = {
@@ -388,9 +406,21 @@ exports.getGlobalReportPDF = async (req, res) => {
         allBanks.forEach((bank) => {
             if (doc.y > 700) { doc.addPage(); }
 
-            const usersInBank = allUsers.filter(u => u.Account?.bankId === bank.id);
-            const liquiditeBank = usersInBank.reduce((sum, u) => 
-                sum + parseFloat(u.Account?.solde || 0), 0);
+            const usersInBank = allUsers.filter(
+                u => u.Accounts?.some(a => a.bankId === bank.id)
+            );
+            const liquiditeBank = usersInBank.reduce((sum, u) => {
+
+                const totalUser = (u.Accounts || [])
+                    .filter(a => a.bankId === bank.id)
+                    .reduce(
+                        (s, a) => s + parseFloat(a.solde || 0),
+                        0
+                    );
+
+                return sum + totalUser;
+
+            }, 0);
 
             doc.rect(40, doc.y, 515, 50).fill('#F5F5F5').stroke('#E0E0E0');
             const bankY = doc.y + 5;
@@ -428,17 +458,32 @@ exports.getGlobalReportPDF = async (req, res) => {
                 drawUserHeader();
             }
             const bgColor = index % 2 === 0 ? '#FAFAFA' : '#FFFFFF';
-            const statutColor = u.Account?.statut === 'ACTIF' ? '#2E7D32' :
-                               u.Account?.statut === 'BLOQUE' ? '#C62828' : '#757575';
-            doc.rect(40, doc.y, 515, 18).fill(bgColor).stroke('#EEEEEE');
+            const account = u.Accounts?.[0];
+
+            const statutColor =
+                account?.statut === 'ACTIF'
+                    ? '#2E7D32'
+                    : account?.statut === 'BLOQUE'
+                    ? '#C62828'
+                    : '#757575';
+
             const rowY = doc.y + 4;
-            doc.fillColor('#212121').fontSize(8).font('Helvetica')
-               .text(u.nom || 'N/A', 50, rowY)
-               .text(u.telephone || 'N/A', 150, rowY)
-               .text(u.Account?.Bank?.nom || 'N/A', 250, rowY)
-               .text(u.Account ? `${parseFloat(u.Account.solde).toLocaleString('fr-FR')} FCFA` : 'N/A', 360, rowY);
+            doc.fillColor('#212121')
+            .fontSize(8)
+            .font('Helvetica')
+            .text(u.nom || 'N/A', 50, rowY)
+            .text(u.telephone || 'N/A', 150, rowY)
+            .text(account?.Bank?.nom || 'N/A', 250, rowY)
+            .text(
+                    account
+                        ? `${parseFloat(account.solde).toLocaleString('fr-FR')} FCFA`
+                        : 'N/A',
+                    360,
+                    rowY
+                );
+
             doc.fillColor(statutColor)
-               .text(u.Account?.statut || 'N/A', 460, rowY);
+            .text(account?.statut || 'N/A', 460, rowY);
             doc.moveDown(0.9);
         });
 
@@ -500,8 +545,6 @@ exports.getGlobalReportPDF = async (req, res) => {
                    40, y + 24, { align: 'center', width: 515 });
             doc.restore();
         }
-
-        doc.flushPages();
         doc.end();
 
     } catch (error) {

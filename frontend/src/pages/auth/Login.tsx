@@ -22,6 +22,8 @@ export default function Login() {
       });
 
       const data = response.data;
+      console.log("ROLE =", data.compte.role);
+      console.log("Navigation...");
       localStorage.setItem("token", data.token);
       localStorage.setItem("compte", JSON.stringify(data.compte));
       localStorage.setItem("role", data.compte.role || "CLIENT");

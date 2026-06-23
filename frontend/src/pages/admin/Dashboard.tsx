@@ -33,7 +33,11 @@ export default function Dashboard() {
 
   return (
     <AdminLayout>
-      <div style={{ padding: "30px" }}>
+      <div
+        style={{
+          width: "100%",
+        }}
+      >
         <h1
           style={{
             fontSize: "42px",

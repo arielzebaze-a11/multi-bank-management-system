@@ -39,6 +39,7 @@ exports.getAllUsers = async (req, res) => {
                 role: u.role,
                 comptes: u.Accounts
                 ? u.Accounts.map(acc => ({
+                    bankId: acc.bankId,
                     numero: `ACC-${String(acc.id).padStart(4, '0')}`,
                     banque: acc.Bank ? acc.Bank.nom : 'Inconnue',
                     code_agence: acc.Bank ? acc.Bank.code_agence : 'N/A',
@@ -221,6 +222,8 @@ exports.changeUserRole = async (req, res) => {
 // adminController.js
 exports.toggleAccountStatus = async (req, res) => {
     try {
+
+         console.log("BODY RECU :", req.body);
         const { userId, bankId, action } = req.body;
 
         // ══ 1. VÉRIFIER L'UTILISATEUR ══

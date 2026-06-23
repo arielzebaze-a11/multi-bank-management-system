@@ -10,6 +10,7 @@ interface User {
   role: string;
 
   comptes: {
+    bankId: number;
     numero: string;
     banque: string;
     code_agence: string;
@@ -38,6 +39,94 @@ export default function AdminUsers() {
   useEffect(() => {
     loadUsers();
   }, []);
+
+const viewUser = (user: User) => {
+  alert(`
+Nom : ${user.nom}
+Email : ${user.email}
+Téléphone : ${user.telephone}
+Rôle : ${user.role}
+
+Banque : ${user.comptes?.[0]?.banque || "Aucune"}
+Agence : ${user.comptes?.[0]?.code_agence || "Aucune"}
+Solde : ${user.comptes?.[0]?.solde || "0 FCFA"}
+Statut : ${user.comptes?.[0]?.statut || "N/A"}
+  `);
+};
+
+const deleteUser = async (id: number) => {
+  try {
+    const confirmDelete = window.confirm(
+      "Voulez-vous vraiment supprimer cet utilisateur ?"
+    );
+
+    if (!confirmDelete) return;
+
+    await api.delete(`/admin/user/${id}`);
+
+    alert("✅ Utilisateur supprimé");
+
+    loadUsers();
+
+  } catch (error) {
+    console.error(error);
+    alert("❌ Erreur suppression utilisateur");
+  }
+};
+
+const changeRole = async (user: User) => {
+  try {
+
+    const nouveauRole =
+      user.role === "ADMIN"
+        ? "CLIENT"
+        : "ADMIN";
+
+    await api.put("/admin/update-role", {
+      userId: user.id,
+      newRole: nouveauRole,
+    });
+
+    alert(`✅ Nouveau rôle : ${nouveauRole}`);
+
+    loadUsers();
+
+  } catch (error) {
+    console.error(error);
+    alert("❌ Erreur changement rôle");
+  }
+};
+
+const toggleStatus = async (user: User) => {
+  try {
+
+    const compte = user.comptes?.[0];
+
+    if (!compte) {
+      alert("Aucun compte trouvé");
+      return;
+    }
+
+    const action =
+      compte.statut === "ACTIF"
+        ? "BLOQUER"
+        : "DEBLOQUER";
+
+    await api.put("/admin/compte/statut", {
+      userId: user.id,
+      bankId: compte.bankId,
+      action,
+    });
+
+    alert("✅ Statut modifié");
+
+    loadUsers();
+
+  } catch (error) {
+    console.error(error);
+    alert("❌ Erreur modification statut");
+  }
+};
 
   if (loading) {
     return (
@@ -104,6 +193,7 @@ export default function AdminUsers() {
                 <th style={th}>Agence</th>
                 <th style={th}>Solde</th>
                 <th style={th}>Statut</th>
+                <th>Actions</th>
               </tr>
             </thead>
 
@@ -134,24 +224,47 @@ export default function AdminUsers() {
                     {user.comptes?.[0]?.solde}
                   </td>
 
-                  <td style={td}>
-                    <span
-                      style={{
-                        padding: "6px 12px",
-                        borderRadius: "20px",
-                        fontWeight: "bold",
-                        background:
-                          user.comptes?.[0]?.statut === "ACTIF"
-                            ? "#dcfce7"
-                            : "#fee2e2",
-                        color:
-                          user.comptes?.[0]?.statut === "ACTIF"
-                            ? "#166534"
-                            : "#991b1b",
-                      }}
+                  <td>{user.comptes?.[0]?.statut}</td>
+
+                  <td
+                    style={{
+                      display: "flex",
+                      gap: "8px",
+                      alignItems: "center",
+                      padding: "15px",
+                    }}
+                  >
+                    <button
+                        title="Voir les informations"
+                        style={actionBtn}
+                        onClick={() => viewUser(user)}
+                      >
+                        👁
+                  </button>
+
+                    <button
+                      title="Modifier le statut"
+                      style={actionBtn}
+                      onClick={() => toggleStatus(user)}
                     >
-                      {user.comptes?.[0]?.statut}
-                    </span>
+                      🔒
+                    </button>
+
+                    <button
+                      title="Supprimer l'utilisateur"
+                      style={actionBtn}
+                      onClick={() => deleteUser(user.id)}
+                    >
+                      🗑
+                    </button>
+
+                    <button
+                      title="Changer le rôle"
+                      style={actionBtn}
+                      onClick={() => changeRole(user)}
+                    >
+                      👑
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -172,4 +285,14 @@ const th = {
 const td = {
   padding: "15px",
   borderBottom: "1px solid #e5e7eb",
+};
+
+const actionBtn = {
+  border: "none",
+  padding: "8px 10px",
+  borderRadius: "8px",
+  cursor: "pointer",
+  background: "#f8fafc",
+  boxShadow: "0 1px 3px rgba(0,0,0,.1)",
+  transition: "0.2s",
 };

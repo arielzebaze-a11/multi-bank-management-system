@@ -575,6 +575,21 @@ const swaggerDocs = {
       }
     },
 
+    '/api/admin/banks': {
+      get: {
+        tags: ['Administration'],
+        summary: 'Récupérer toutes les banques du système',
+        responses: {
+          200: {
+            description: '✅ Liste des banques récupérée'
+          },
+          500: {
+            description: '❌ Erreur serveur'
+          }
+        }
+      }
+    },
+
     '/api/admin/update-role': {
       put: { 
         tags: ['Administration'], 

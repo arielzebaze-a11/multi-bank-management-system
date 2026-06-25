@@ -6,14 +6,22 @@ const Bank = require('../models/Bank'); // Ajout du modèle Bank
 
 // 3. Liste de tous les utilisateurs
 exports.getAllUsers = async (req, res) => {
+    
     try {
         // Récupérer tous les users avec leurs comptes et banques associées
         const users = await User.findAll({
             attributes: { exclude: ['code_pin'] }, // On cache le PIN
             include: [{
-                model: Account,
-                as: 'Accounts',
-                attributes: ['id', 'solde', 'statut', 'limite_virement'],
+            model: Account,
+            as: 'Accounts',
+            attributes: [
+                'id',
+                'bankId',
+                'userId',
+                'solde',
+                'statut',
+                'limite_virement'
+            ],
                 include: [{
                     model: Bank,
                     as: 'Bank',
@@ -21,6 +29,11 @@ exports.getAllUsers = async (req, res) => {
                 }]
             }]
         });
+
+        console.log(
+        "BANKID TEST =",
+        users[0]?.Accounts?.[0]
+        );
 
         if (!users || users.length === 0) {
             return res.status(404).json({ 
@@ -38,14 +51,16 @@ exports.getAllUsers = async (req, res) => {
                 telephone: u.telephone,
                 role: u.role,
                 comptes: u.Accounts
-                ? u.Accounts.map(acc => ({
-                    bankId: acc.bankId,
-                    numero: `ACC-${String(acc.id).padStart(4, '0')}`,
-                    banque: acc.Bank ? acc.Bank.nom : 'Inconnue',
-                    code_agence: acc.Bank ? acc.Bank.code_agence : 'N/A',
-                    solde: `${parseFloat(acc.solde).toLocaleString('fr-FR')} FCFA`,
-                    statut: acc.statut,
-                    limite_virement: `${parseFloat(acc.limite_virement).toLocaleString('fr-FR')} FCFA`
+                    ? u.Accounts.map(acc => ({
+                        accountId: acc.id,
+                        bankId: acc.bankId,
+
+                        numero: `ACC-${String(acc.id).padStart(4, '0')}`,
+                        banque: acc.Bank ? acc.Bank.nom : 'Inconnue',
+                        code_agence: acc.Bank ? acc.Bank.code_agence : 'N/A',
+                        solde: `${parseFloat(acc.solde).toLocaleString('fr-FR')} FCFA`,
+                        statut: acc.statut,
+                        limite_virement: `${parseFloat(acc.limite_virement).toLocaleString('fr-FR')} FCFA`
                     }))
                 : []
             }))
@@ -221,10 +236,11 @@ exports.changeUserRole = async (req, res) => {
 
 // adminController.js
 exports.toggleAccountStatus = async (req, res) => {
+
+    
     try {
 
-         console.log("BODY RECU :", req.body);
-        const { userId, bankId, action } = req.body;
+        const { userId, bankId, statut } = req.body;
 
         // ══ 1. VÉRIFIER L'UTILISATEUR ══
         const user = await User.findByPk(userId);
@@ -247,52 +263,32 @@ exports.toggleAccountStatus = async (req, res) => {
         }
 
         // ══ 3. VÉRIFIER L'ACTION ══
-        if (!['BLOQUER', 'DEBLOQUER'].includes(action)) {
-            return res.status(400).json({ 
-                error: "❌ Action invalide. Utilisez 'BLOQUER' ou 'DEBLOQUER'." 
+        if (!['ACTIF', 'BLOQUE', 'SUPPRIME'].includes(statut)) {
+            return res.status(400).json({
+                error: "❌ Statut invalide."
             });
         }
 
         // ══ 4. VÉRIFIER LE STATUT ACTUEL ══
-        if (action === 'BLOQUER' && account.statut === 'BLOQUE') {
-            return res.status(400).json({ 
-                error: "❌ Ce compte est déjà bloqué." 
-            });
-        }
-
-        if (action === 'BLOQUER' && account.statut === 'SUPPRIME') {
-            return res.status(400).json({ 
-                error: "❌ Ce compte est supprimé. Impossible de le bloquer." 
-            });
-        }
-
-        if (action === 'DEBLOQUER' && account.statut === 'ACTIF') {
-            return res.status(400).json({ 
-                error: "❌ Ce compte est déjà actif." 
-            });
-        }
-
-        if (action === 'DEBLOQUER' && account.statut === 'SUPPRIME') {
-            return res.status(400).json({ 
-                error: "❌ Ce compte est supprimé. Impossible de le débloquer." 
+        if (account.statut === statut) {
+            return res.status(400).json({
+                error: `❌ Le compte est déjà ${statut}.`
             });
         }
 
         // ══ 5. APPLIQUER L'ACTION ══
-        const nouveauStatut = action === 'BLOQUER' ? 'BLOQUE' : 'ACTIF';
-        await account.update({ statut: nouveauStatut });
+        await account.update({
+            statut
+        });
 
-        return res.status(200).json({ 
-            message: action === 'BLOQUER' 
-                ? "🔒 Compte bloqué avec succès." 
-                : "✅ Compte débloqué avec succès.",
+        return res.status(200).json({
+            message: "✅ Statut modifié avec succès.",
             details: {
                 userId: user.id,
                 nom: user.nom,
-                telephone: user.telephone,
-                banque: account.Bank ? account.Bank.nom : 'Inconnue',
+                banque: account.Bank?.nom,
                 ancien_statut: account.statut,
-                nouveau_statut: nouveauStatut
+                nouveau_statut: statut
             }
         });
 
@@ -563,61 +559,48 @@ exports.getGlobalReportPDF = async (req, res) => {
 
 exports.updateAccountStatus = async (req, res) => {
     try {
-        const { userId, bankId, status } = req.body;
 
-        // ══ 1. VÉRIFIER QUE LE STATUT EST VALIDE ══
-        if (!['ACTIF', 'BLOQUE', 'SUPPRIME'].includes(status)) {
-            return res.status(400).json({ 
-                error: "❌ Statut invalide. Utilisez 'ACTIF', 'BLOQUE' ou 'SUPPRIME'." 
-            });
-        }
+        const { userId, bankId, statut } = req.body;
 
-        // ══ 2. VÉRIFIER L'UTILISATEUR ══
-        const user = await User.findByPk(userId);
-        if (!user) {
-            return res.status(404).json({ 
-                error: "❌ Utilisateur non trouvé." 
-            });
-        }
-
-        // ══ 3. VÉRIFIER LE COMPTE DANS CETTE BANQUE ══
-        const account = await Account.findOne({ 
-            where: { userId, bankId },
-            include: [{ model: Bank, as: 'Bank' }]
+        const account = await Account.findOne({
+            where: { userId, bankId }
         });
 
         if (!account) {
-            return res.status(404).json({ 
-                error: "❌ Aucun compte trouvé pour cet utilisateur dans cette banque." 
+            return res.status(404).json({
+                error: "Compte introuvable"
             });
         }
 
-        // ══ 4. VÉRIFIER SI STATUT DÉJÀ IDENTIQUE ══
-        if (account.statut === status) {
-            return res.status(400).json({ 
-                error: `❌ Ce compte est déjà en statut ${status}.` 
+        if (
+            !["ACTIF", "BLOQUE", "SUPPRIME"]
+            .includes(statut)
+        ) {
+            return res.status(400).json({
+                error: "Statut invalide"
             });
         }
 
-        // ══ 5. METTRE À JOUR ══
-        const ancienStatut = account.statut;
-        await account.update({ statut: status });
+        if (account.statut === statut) {
+            return res.status(400).json({
+                error: "Le compte possède déjà ce statut"
+            });
+        }
 
-        return res.status(200).json({ 
-            message: `✅ Statut mis à jour avec succès.`,
-            details: {
-                userId: user.id,
-                nom: user.nom,
-                telephone: user.telephone,
-                banque: account.Bank ? account.Bank.nom : 'Inconnue',
-                ancien_statut: ancienStatut,
-                nouveau_statut: status
-            }
+        await account.update({
+            statut
+        });
+
+        return res.status(200).json({
+            message: "Statut modifié avec succès"
         });
 
     } catch (error) {
-        return res.status(500).json({ 
-            error: "❌ Erreur : " + error.message 
+
+        console.error("ERREUR STATUS :", error);
+
+        return res.status(500).json({
+            error: error.message
         });
     }
 };
@@ -723,5 +706,27 @@ exports.getDashboardStats = async (req, res) => {
         res.status(500).json({
             error: error.message
         });
+    }
+};
+
+exports.getBanks = async (req, res) => {
+    try {
+
+        const banks = await Bank.findAll({
+            attributes: [
+                'id',
+                'nom',
+                'code_agence'
+            ]
+        });
+
+        return res.status(200).json(banks);
+
+    } catch (error) {
+
+        return res.status(500).json({
+            error: error.message
+        });
+
     }
 };

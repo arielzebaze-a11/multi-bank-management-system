@@ -90,4 +90,12 @@ router.get(
     adminCtrl.getDashboardStats
 );
 
+
+router.get(
+    '/admin/banks',
+    authMiddleware,
+    roleMiddleware('ADMIN'),
+    adminCtrl.getBanks
+);
+
 module.exports = router;

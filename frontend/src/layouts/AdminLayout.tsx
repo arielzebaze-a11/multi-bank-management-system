@@ -1,29 +1,35 @@
+import { Box, Toolbar } from "@mui/material";
+import { Outlet } from "react-router-dom";
 import AdminSidebar from "../components/AdminSidebar";
 
-export default function AdminLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+const drawerWidth = 280;
+
+export default function AdminLayout() {
   return (
-    <div
-      style={{
+    <Box
+      sx={{
         display: "flex",
         minHeight: "100vh",
+        bgcolor: "#F4F7FC"
       }}
     >
       <AdminSidebar />
 
-      <div
-        style={{
-          flex: 1,
-          padding: "20px",
-          background: "#f5f5f5",
+      <Box
+        component="main"
+        sx={{
+          flexGrow: 1,
+          p: 4,
+          bgcolor: "#F5F7FB",
+          minHeight: "100vh",
+          overflowX: "hidden",
+          width: "100%"
         }}
       >
-        {children}
-      </div>
-    </div>
+        <Toolbar />
+
+        <Outlet />
+      </Box>
+    </Box>
   );
 }
-  

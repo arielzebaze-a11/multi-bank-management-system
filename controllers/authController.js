@@ -3,6 +3,7 @@ const Account = require('../models/Account');
 const Bank = require('../models/Bank');
 const mailer = require('../config/mailer'); // ← Import du mailer
 const jwt = require("jsonwebtoken");
+const bcrypt = require("bcrypt");
 
 // ─────────────────────────────────────────────────────────
 // 1. INSCRIPTION
@@ -98,7 +99,7 @@ exports.register = async (req, res) => {
                     const newAccount = await Account.create({
                         userId: user.id,
                         bankId: bank.id,
-                        code_pin: code_pin,
+                        code_pin: await bcrypt.hash(code_pin, 10),
                         solde: 0.00,
                         statut: 'ACTIF'
                     });
@@ -127,7 +128,7 @@ exports.register = async (req, res) => {
             const newAccount = await Account.create({
                 userId: user.id,
                 bankId: bank.id,
-                code_pin: code_pin,
+                code_pin: await bcrypt.hash(code_pin, 10),
                 solde: 0.00,
                 statut: 'ACTIF'
             });
@@ -155,11 +156,19 @@ exports.register = async (req, res) => {
         user = await User.create({ nom, email, telephone, code_pin });
 
         const newAccount = await Account.create({
+
             userId: user.id,
+
             bankId: bank.id,
-            code_pin: code_pin,
-            solde: 0.00,
-            statut: 'ACTIF'
+
+            code_pin: await bcrypt.hash(code_pin,10),
+
+            solde:0,
+
+            limite_virement:500000,
+
+            statut:"ACTIF"
+
         });
 
         // ✅ Email de confirmation pour tout nouvel utilisateur
@@ -208,32 +217,53 @@ exports.login = async (req, res) => {
             });
         }
 
-        // 3. Chercher le compte de cet utilisateur dans CETTE banque avec ce PIN
-        const account = await Account.findOne({ 
-            where: { 
-                userId: user.id, 
-                bankId: bank.id,
-                code_pin: code_pin
-            } 
+        // Chercher le compte uniquement avec user + banque
+        const account = await Account.findOne({
+            where: {
+                userId: user.id,
+                bankId: bank.id
+            }
         });
 
+        // Aucun compte dans cette banque
         if (!account) {
-            // ── Email d'erreur si l'utilisateur a un email enregistré ──────────
+
+            return res.status(401).json({
+                error: "❌ Code agence incorrect."
+            });
+
+        }
+
+        // Vérification du PIN avec bcrypt
+        const pinOk = await bcrypt.compare(
+            code_pin,
+            account.code_pin
+        );
+
+        if (!pinOk) {
+
             if (user.email) {
+
                 try {
+
                     await mailer.sendEmailErrorNotification(
                         user.email,
                         bank.nom,
-                        `Tentative de connexion échouée sur votre compte chez ${bank.nom} : code PIN ou code agence incorrect.`
+                        `Tentative de connexion échouée sur votre compte chez ${bank.nom} : code PIN incorrect.`
                     );
+
                 } catch (mailErr) {
-                    console.error("⚠️  Erreur envoi email d'erreur login :", mailErr.message);
+
+                    console.error(mailErr.message);
+
                 }
+
             }
 
-            return res.status(401).json({ 
-                error: "❌ Code PIN ou code agence incorrect." 
+            return res.status(401).json({
+                error: "❌ Code PIN incorrect."
             });
+
         }
 
         // 4. Vérification du statut
@@ -329,18 +359,29 @@ exports.updateProfile = async (req, res) => {
             });
         }
 
-        // 3. Vérifier que ce user a bien un compte dans CETTE banque
-        const account = await Account.findOne({ 
-            where: { 
-                userId: user.id, 
-                bankId: bank.id,
-                code_pin: code_pin
-            } 
+        // 3. Vérifier que ce user possède un compte dans cette banque
+        const account = await Account.findOne({
+            where: {
+                userId: user.id,
+                bankId: bank.id
+            }
         });
 
         if (!account) {
-            return res.status(401).json({ 
-                error: "❌ Code PIN ou code agence incorrect." 
+            return res.status(404).json({
+                error: "❌ Aucun compte trouvé dans cette banque."
+            });
+        }
+
+        // Vérifier le PIN
+        const pinOk = await bcrypt.compare(
+            code_pin,
+            account.code_pin
+        );
+
+        if (!pinOk) {
+            return res.status(401).json({
+                error: "❌ Code PIN incorrect."
             });
         }
 

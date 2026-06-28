@@ -6,6 +6,7 @@ const { Op } = require('sequelize');
 const Bank = require('../models/Bank'); // Ajout du modèle Bank
 const PDFDocument = require('pdfkit'); // Pour générer le PDF du RIB
 const MAX_SOLDE_AUTORISE = 1_000_000;
+const bcrypt=require('bcrypt');
 
 exports.getBalance = async (req, res) => {
     try {
@@ -28,17 +29,27 @@ exports.getBalance = async (req, res) => {
         }
 
         // 3. Vérifier le compte dans CETTE banque avec ce PIN
-        const account = await Account.findOne({ 
-            where: { 
-                userId: user.id, 
-                bankId: bank.id,
-                code_pin: code_pin
-            } 
+       const account = await Account.findOne({
+            where:{
+                userId:user.id,
+                bankId:bank.id
+            }
         });
 
-        if (!account) {
-            return res.status(401).json({ 
-                error: "❌ Code PIN ou code agence incorrect." 
+        if(!account){
+            return res.status(401).json({
+                error:"❌ Code PIN ou code agence incorrect."
+            });
+        }
+
+        const pinOk = await bcrypt.compare(
+            code_pin,
+            account.code_pin
+        );
+
+        if(!pinOk){
+            return res.status(401).json({
+                error:"❌ Code PIN ou code agence incorrect."
             });
         }
 
@@ -101,13 +112,23 @@ exports.getHistory = async (req, res) => {
             where: { 
                 userId: user.id, 
                 bankId: bank.id,
-                code_pin: code_pin
             } 
         });
 
         if (!account) {
             return res.status(401).json({ 
                 error: "❌ Code PIN ou code agence incorrect." 
+            });
+        }
+
+        const pinOk = await bcrypt.compare(
+            code_pin,
+            account.code_pin
+        );
+
+        if(!pinOk){
+            return res.status(401).json({
+                error:"❌ Code PIN ou code agence incorrect."
             });
         }
 
@@ -253,13 +274,25 @@ exports.transfer = async (req, res) => {
             where: { 
                 userId: sender.id, 
                 bankId: bankExpediteur.id,
-                code_pin: code_pin
             }
         });
 
         if (!senderAccount) {
             await t.rollback();
             return res.status(401).json({ error: "❌ Code PIN ou code agence incorrect." });
+        }
+        
+        const pinOk = await bcrypt.compare(
+            code_pin,
+            senderAccount.code_pin
+        );
+
+        if(!pinOk){
+            await t.rollback();
+
+            return res.status(401).json({
+                error:"❌ Code PIN incorrect."
+            });
         }
 
         // ══ 4. VÉRIFIER STATUT EXPÉDITEUR ══
@@ -395,13 +428,25 @@ exports.deposit = async (req, res) => {
             where: { 
                 userId: user.id, 
                 bankId: bank.id,
-                code_pin: code_pin
             }
         });
 
         if (!account) {
             await t.rollback();
             return res.status(401).json({ error: "❌ Code PIN ou code agence incorrect." });
+        }
+
+        const pinOk = await bcrypt.compare(
+            code_pin,
+            account.code_pin
+        );
+
+        if(!pinOk){
+            await t.rollback();
+
+            return res.status(401).json({
+                error:"❌ Code PIN incorrect."
+            });
         }
 
         // ══ 4. VÉRIFIER LE STATUT ══
@@ -495,7 +540,6 @@ exports.withdraw = async (req, res) => {
             where: { 
                 userId: user.id, 
                 bankId: bank.id,
-                code_pin: code_pin
             },
             lock: t.LOCK.UPDATE // Empêche les retraits simultanés
         });
@@ -503,6 +547,19 @@ exports.withdraw = async (req, res) => {
         if (!account) {
             await t.rollback();
             return res.status(401).json({ error: "❌ Code PIN ou code agence incorrect." });
+        }
+
+        const pinOk = await bcrypt.compare(
+            code_pin,
+            account.code_pin
+        );
+
+        if(!pinOk){
+            await t.rollback();
+
+            return res.status(401).json({
+                error:"❌ Code PIN incorrect."
+            });
         }
 
         // ══ 4. VÉRIFIER LE STATUT ══
@@ -791,13 +848,23 @@ exports.closeAccount = async (req, res) => {
             where: { 
                 userId: user.id, 
                 bankId: bank.id,
-                code_pin: code_pin
             }
         });
 
         if (!account) {
             return res.status(401).json({ 
                 error: "❌ Code PIN ou code agence incorrect." 
+            });
+        }
+
+        const pinOk = await bcrypt.compare(
+            code_pin,
+            account.code_pin
+        );
+
+        if(!pinOk){
+            return res.status(401).json({
+                error:"❌ Code PIN incorrect."
             });
         }
 

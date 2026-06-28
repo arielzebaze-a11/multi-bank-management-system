@@ -3,6 +3,7 @@ const Account = require('../models/Account');
 const Transaction = require('../models/Transaction');
 const PDFDocument = require('pdfkit');
 const Bank = require('../models/Bank'); // Ajout du modèle Bank
+const { Op } = require("sequelize");
 
 // 3. Liste de tous les utilisateurs
 exports.getAllUsers = async (req, res) => {
@@ -52,17 +53,30 @@ exports.getAllUsers = async (req, res) => {
                 role: u.role,
                 comptes: u.Accounts
                     ? u.Accounts.map(acc => ({
+
                         accountId: acc.id,
+
+                        userId: acc.userId,
+
                         bankId: acc.bankId,
 
                         numero: `ACC-${String(acc.id).padStart(4, '0')}`,
-                        banque: acc.Bank ? acc.Bank.nom : 'Inconnue',
-                        code_agence: acc.Bank ? acc.Bank.code_agence : 'N/A',
-                        solde: `${parseFloat(acc.solde).toLocaleString('fr-FR')} FCFA`,
+
+                        banque: acc.Bank ? acc.Bank.nom : "Inconnue",
+
+                        code_agence: acc.Bank
+                            ? acc.Bank.code_agence
+                            : "N/A",
+
+                        solde: `${parseFloat(acc.solde).toLocaleString("fr-FR")} FCFA`,
+
                         statut: acc.statut,
-                        limite_virement: `${parseFloat(acc.limite_virement).toLocaleString('fr-FR')} FCFA`
+
+                        limite_virement:
+                            `${parseFloat(acc.limite_virement).toLocaleString("fr-FR")} FCFA`
+
                     }))
-                : []
+                    : []
             }))
         });
 
@@ -123,11 +137,19 @@ exports.getAllTransactions = async (req, res) => {
     }
 };
 
-//supprimer une utilisateur (en changeant le statut du compte à SUPPRIME)
+// Archiver un compte utilisateur
 exports.deleteUser = async (req, res) => {
     try {
+
+        console.log("===== DELETE USER APPELE =====");
+        console.log("PARAMS =", req.params);
+        console.log("BODY =", req.body);
+
         const { userId } = req.params;
         const { bankId } = req.body; // On cible UNE banque spécifique
+
+        console.log("userId =", userId);
+        console.log("bankId =", bankId);
 
         // ══ 1. VÉRIFIER QUE L'UTILISATEUR EXISTE ══
         const user = await User.findByPk(userId);
@@ -143,6 +165,8 @@ exports.deleteUser = async (req, res) => {
             include: [{ model: Bank, as: 'Bank' }]
         });
 
+        console.log("ACCOUNT =", account);
+
         if (!account) {
             return res.status(404).json({ 
                 error: "❌ Aucun compte trouvé pour cet utilisateur dans cette banque." 
@@ -152,7 +176,7 @@ exports.deleteUser = async (req, res) => {
         // ══ 3. VÉRIFIER LE STATUT ACTUEL ══
         if (account.statut === 'SUPPRIME') {
             return res.status(400).json({ 
-                error: "❌ Ce compte est déjà supprimé." 
+                error: "❌ Ce compte est déjà archivé." 
             });
         }
 
@@ -162,11 +186,14 @@ exports.deleteUser = async (req, res) => {
             });
         }
 
-        // ══ 4. PASSER LE STATUT À SUPPRIME ══
+
+        // ══ 4.  Archiver le compte ══
         await account.update({ statut: 'SUPPRIME' });
 
+        console.log("On passe à update...");
+
         return res.status(200).json({ 
-            message: "✅ Compte supprimé avec succès (données conservées en archive).",
+            message: "✅ Compte archivé avec succès.",
             details: {
                 userId: user.id,
                 nom: user.nom,
@@ -177,9 +204,15 @@ exports.deleteUser = async (req, res) => {
             }
         });
 
+        console.log("UPDATE OK");
+
     } catch (error) {
-        return res.status(500).json({ 
-            error: "❌ Erreur suppression : " + error.message 
+
+        console.log("ERREUR COMPLETE =");
+        console.log(error);
+
+        return res.status(500).json({
+            error: error.message
         });
     }
 };
@@ -573,7 +606,7 @@ exports.updateAccountStatus = async (req, res) => {
         }
 
         if (
-            !["ACTIF", "BLOQUE", "SUPPRIME"]
+            !["ACTIF", "BLOQUE", "SUPPRIME"] 
             .includes(statut)
         ) {
             return res.status(400).json({
@@ -651,7 +684,7 @@ exports.updateAccountLimit = async (req, res) => {
 
         if (account.statut === 'SUPPRIME') {
             return res.status(403).json({ 
-                error: "🗑️ Impossible de modifier la limite d'un compte supprimé." 
+                error: "🗑️ Impossible de modifier la limite d'un compte archivé." 
             });
         }
 
@@ -729,4 +762,461 @@ exports.getBanks = async (req, res) => {
         });
 
     }
+};
+
+exports.restoreAccount = async (req, res) => {
+
+    try {
+
+        const { userId, bankId } = req.body;
+
+        const account = await Account.findOne({
+            where: { userId, bankId }
+        });
+
+        if (!account) {
+            return res.status(404).json({
+                error: "Compte introuvable."
+            });
+        }
+
+        if (account.statut !== "SUPPRIME") {
+            return res.status(400).json({
+                error: "Ce compte n'est pas archivé."
+            });
+        }
+
+        await account.update({
+            statut: "ACTIF"
+        });
+
+        return res.json({
+            message: "Compte restauré avec succès."
+        });
+
+    } catch (error) {
+
+        return res.status(500).json({
+            error: error.message
+        });
+
+    }
+
+};
+
+
+// ======================================================
+// RAPPORT PDF D'UN COMPTE
+// ======================================================
+
+exports.generateAccountReport = async (req, res) => {
+
+    try {
+
+        const { userId, bankId } = req.body;
+
+        if (!userId || !bankId) {
+            return res.status(400).json({
+                error: "userId et bankId sont obligatoires."
+            });
+        }
+
+        //-------------------------------------------------
+        // Utilisateur
+        //-------------------------------------------------
+
+        const user = await User.findByPk(userId);
+
+        if (!user) {
+            return res.status(404).json({
+                error: "Utilisateur introuvable."
+            });
+        }
+
+        //-------------------------------------------------
+        // Compte
+        //-------------------------------------------------
+
+        const account = await Account.findOne({
+
+            where: {
+                userId,
+                bankId
+            },
+
+            include: [
+                {
+                    model: Bank,
+                    as: "Bank"
+                }
+            ]
+
+        });
+
+        if (!account) {
+            return res.status(404).json({
+                error: "Compte introuvable."
+            });
+        }
+
+        //-------------------------------------------------
+        // Transactions
+        //-------------------------------------------------
+
+        const transactions = await Transaction.findAll({
+
+            where: {
+
+                [Op.or]: [
+
+                    {
+                        expediteur_tel: user.telephone
+                    },
+
+                    {
+                        destinataire_tel: user.telephone
+                    }
+
+                ]
+
+            },
+
+            order: [
+                ["createdAt", "DESC"]
+            ]
+
+        });
+
+        //-------------------------------------------------
+        // PDF
+        //-------------------------------------------------
+
+        const filename =
+            `Rapport_ACC-${String(account.id).padStart(4, "0")}.pdf`;
+
+        res.setHeader(
+            "Content-Disposition",
+            `attachment; filename="${filename}"`
+        );
+
+        res.setHeader(
+            "Content-Type",
+            "application/pdf"
+        );
+
+        const doc = new PDFDocument({
+
+            margin: 40,
+            size: "A4"
+
+        });
+
+        doc.pipe(res);
+
+        //==================================================
+// EN-TÊTE
+//==================================================
+
+doc
+    .rect(0, 0, 595, 80)
+    .fill("#0F172A");
+
+doc
+    .fillColor("white")
+    .fontSize(22)
+    .font("Helvetica-Bold")
+    .text(
+        "SGB BANKING SYSTEM",
+        40,
+        22,
+        {
+            align: "center"
+        }
+    );
+
+doc
+    .fontSize(11)
+    .font("Helvetica")
+    .text(
+        "Rapport détaillé d'un compte bancaire",
+        {
+            align: "center"
+        }
+    );
+
+doc.moveDown(4);
+
+//==================================================
+// INFORMATIONS TITULAIRE
+//==================================================
+
+doc
+    .fillColor("#1E3A8A")
+    .fontSize(15)
+    .font("Helvetica-Bold")
+    .text("INFORMATIONS DU TITULAIRE");
+
+doc.moveDown(.5);
+
+doc
+    .fillColor("black")
+    .fontSize(11)
+    .font("Helvetica");
+
+doc.text(`Nom : ${user.nom}`);
+doc.text(`Téléphone : ${user.telephone}`);
+doc.text(`Email : ${user.email}`);
+doc.text(`Rôle : ${user.role}`);
+
+doc.moveDown(1);
+
+//==================================================
+// INFORMATIONS DU COMPTE
+//==================================================
+
+doc
+    .fillColor("#1E3A8A")
+    .fontSize(15)
+    .font("Helvetica-Bold")
+    .text("COMPTE BANCAIRE");
+
+doc.moveDown(.5);
+
+doc
+    .fillColor("black")
+    .fontSize(11)
+    .font("Helvetica");
+
+doc.text(
+    `Numéro : ACC-${String(account.id).padStart(4, "0")}`
+);
+
+doc.text(
+    `Banque : ${account.Bank.nom}`
+);
+
+doc.text(
+    `Agence : ${account.Bank.code_agence}`
+);
+
+doc.text(
+    `Statut : ${account.statut}`
+);
+
+doc.text(
+    `Solde : ${parseFloat(account.solde).toLocaleString("fr-FR")} FCFA`
+);
+
+doc.text(
+    `Limite : ${parseFloat(account.limite_virement).toLocaleString("fr-FR")} FCFA`
+);
+
+doc.moveDown(1);
+
+//==================================================
+// STATISTIQUES
+//==================================================
+
+const depots =
+transactions.filter(t => t.type === "DEPOT");
+
+const retraits =
+transactions.filter(t => t.type === "RETRAIT");
+
+const virements =
+transactions.filter(t => t.type === "VIREMENT");
+
+doc
+.fillColor("#1E3A8A")
+.fontSize(15)
+.font("Helvetica-Bold")
+.text("STATISTIQUES");
+
+doc.moveDown(.5);
+
+doc
+.fillColor("black")
+.fontSize(11);
+
+doc.text(
+`Nombre de transactions : ${transactions.length}`
+);
+
+doc.text(
+`Dépôts : ${depots.length}`
+);
+
+doc.text(
+`Retraits : ${retraits.length}`
+);
+
+doc.text(
+`Virements : ${virements.length}`
+);
+
+doc.moveDown(1);
+
+//==================================================
+// HISTORIQUE DES TRANSACTIONS
+//==================================================
+
+doc.moveDown(1);
+
+doc
+.fillColor("#1E3A8A")
+.fontSize(15)
+.font("Helvetica-Bold")
+.text("HISTORIQUE DES TRANSACTIONS");
+
+doc.moveDown(0.8);
+
+// ---------------- EN-TÊTE DU TABLEAU ----------------
+
+let y = doc.y;
+
+doc
+.rect(40, y, 515, 22)
+.fill("#0F172A");
+
+doc.fillColor("white")
+.fontSize(10)
+.font("Helvetica-Bold");
+
+doc.text("Date", 50, y + 6);
+doc.text("Type", 150, y + 6);
+doc.text("Montant", 260, y + 6);
+doc.text("Statut", 430, y + 6);
+
+y += 25;
+
+// ---------------- LIGNES ----------------
+
+doc.font("Helvetica");
+doc.fontSize(9);
+
+if (transactions.length === 0) {
+
+    doc.fillColor("#666");
+
+    doc.text(
+        "Aucune transaction disponible.",
+        50,
+        y
+    );
+
+}
+else {
+
+    transactions.forEach((t, index) => {
+
+        // Nouvelle page automatique
+        if (y > 720) {
+
+            doc.addPage();
+
+            y = 40;
+
+            doc
+            .rect(40, y, 515, 22)
+            .fill("#0F172A");
+
+            doc.fillColor("white")
+            .fontSize(10)
+            .font("Helvetica-Bold");
+
+            doc.text("Date", 50, y + 6);
+            doc.text("Type", 150, y + 6);
+            doc.text("Montant", 260, y + 6);
+            doc.text("Statut", 430, y + 6);
+
+            y += 25;
+
+        }
+
+        // Fond alterné
+        if (index % 2 === 0) {
+
+            doc
+            .rect(40, y - 2, 515, 20)
+            .fill("#F8FAFC");
+
+        }
+
+        doc.fillColor("black");
+        doc.font("Helvetica");
+
+        doc.text(
+            new Date(t.createdAt)
+            .toLocaleDateString("fr-FR"),
+            50,
+            y
+        );
+
+        doc.text(
+            t.type,
+            150,
+            y
+        );
+
+        doc.text(
+            parseFloat(t.montant)
+            .toLocaleString("fr-FR") + " FCFA",
+            260,
+            y
+        );
+
+        doc.text(
+            t.statut,
+            430,
+            y
+        );
+
+        y += 22;
+
+    });
+
+}
+
+//==================================================
+// FIN PAGE
+//==================================================
+
+doc.moveDown(2);
+
+doc
+.fontSize(9)
+.fillColor("gray")
+.text(
+"Document généré automatiquement par SGB Banking System.",
+{
+align:"center"
+}
+);
+
+doc.text(
+new Date().toLocaleString("fr-FR"),
+{
+align:"center"
+}
+);
+
+doc.end();
+
+
+    }
+
+    catch (error) {
+
+        console.error(error);
+
+        return res.status(500).json({
+
+            error:
+                "Erreur génération rapport : "
+                + error.message
+
+        });
+
+    }
+
 };

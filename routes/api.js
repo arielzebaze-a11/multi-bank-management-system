@@ -98,4 +98,18 @@ router.get(
     adminCtrl.getBanks
 );
 
+router.put(
+    "/admin/account/restore",
+    authMiddleware,
+    roleMiddleware("ADMIN"),
+    adminCtrl.restoreAccount
+);
+
+router.post(
+    "/admin/account/report",
+    authMiddleware,
+    roleMiddleware("ADMIN"),
+    adminCtrl.generateAccountReport
+);
+
 module.exports = router;

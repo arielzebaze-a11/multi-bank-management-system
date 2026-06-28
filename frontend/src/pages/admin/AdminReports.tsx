@@ -1,4 +1,3 @@
-import AdminLayout from "../../layouts/AdminLayout";
 import api from "../../services/api";
 
 export default function AdminReports() {
@@ -34,14 +33,12 @@ export default function AdminReports() {
   };
 
   return (
-    <AdminLayout>
-      <div>
-        <h1>📑 Rapports</h1>
+    <div>
+      <h1>📑 Rapports</h1>
 
-        <button onClick={downloadReport}>
-          Télécharger le rapport PDF
-        </button>
-      </div>
-    </AdminLayout>
+      <button onClick={downloadReport}>
+        Télécharger le rapport PDF
+      </button>
+    </div>
   );
 }

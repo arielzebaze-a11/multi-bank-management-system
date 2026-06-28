@@ -1,0 +1,126 @@
+require('dotenv').config();
+
+const bcrypt = require('bcrypt');
+const sequelize = require('./config/db');
+
+const User = require('./models/User');
+const Account = require('./models/Account');
+
+const SALT = 10;
+
+async function hashAllPins() {
+
+    try {
+
+        await sequelize.authenticate();
+
+        console.log("\n==============================");
+        console.log("HACHAGE DES PIN");
+        console.log("==============================\n");
+
+        //--------------------------------------
+        // USERS
+        //--------------------------------------
+
+        const users = await User.findAll();
+
+        console.log("Utilisateurs :", users.length);
+
+        for (const user of users) {
+
+            if (!user.code_pin.startsWith("$2")) {
+
+                const hash = await bcrypt.hash(
+                    user.code_pin,
+                    SALT
+                );
+
+                await user.update(
+                    {
+                        code_pin: hash
+                    },
+                    {
+                        validate: false
+                    }
+                );
+
+                console.log(
+                    "✔ User",
+                    user.nom
+                );
+
+            } else {
+
+                console.log(
+                    "Déjà haché :",
+                    user.nom
+                );
+
+            }
+
+        }
+
+        //--------------------------------------
+        // ACCOUNTS
+        //--------------------------------------
+
+        const accounts = await Account.findAll();
+
+        console.log(
+            "\nComptes :",
+            accounts.length
+        );
+
+        for (const account of accounts) {
+
+            if (!account.code_pin.startsWith("$2")) {
+
+                const hash = await bcrypt.hash(
+                    account.code_pin,
+                    SALT
+                );
+
+                await account.update(
+                    {
+                        code_pin: hash
+                    },
+                    {
+                        validate: false
+                    }
+                );
+
+                console.log(
+                    "✔ Compte",
+                    account.id
+                );
+
+            } else {
+
+                console.log(
+                    "Déjà haché compte",
+                    account.id
+                );
+
+            }
+
+        }
+
+        console.log("\n==============================");
+        console.log("TERMINÉ");
+        console.log("==============================\n");
+
+        process.exit();
+
+    }
+
+    catch (err) {
+
+        console.error(err);
+
+        process.exit();
+
+    }
+
+}
+
+hashAllPins();

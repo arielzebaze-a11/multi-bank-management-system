@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import api from "../../services/api";
-import AdminLayout from "../../layouts/AdminLayout";
+import { Box } from "@mui/material";
+import UserDialog from "../../components/users/UserDialog";
+import CreateUserDialog from "../../components/users/CreateUserDialog";
 
 interface User
 {
@@ -11,17 +13,29 @@ interface User
     role: string;
 
   comptes: {
+
     accountId: number;
+
+    userId: number;
+
     bankId: number;
 
     numero: string;
+
     banque: string;
+
     code_agence: string;
+
     solde: string;
+
     statut: string;
+
     limite_virement: string;
-  }[];
+
+}[];
 }
+
+
 
 export default function AdminUsers() {
 const [users, setUsers] = useState<User[]>([]);
@@ -33,7 +47,25 @@ const [statusModal, setStatusModal] =
 const [createModal, setCreateModal] =
   useState(false);
 
+const [messageModal, setMessageModal] =
+  useState(false);
+
+const [messageTitle, setMessageTitle] =
+  useState("");
+
+const [messageText, setMessageText] =
+  useState("");
+
 const [banks, setBanks] = useState([]);
+
+const [limitModal, setLimitModal] =
+    useState(false);
+
+const [selectedAccount, setSelectedAccount] =
+    useState<any>(null);
+
+const [newLimit, setNewLimit] =
+    useState("");
 
 const [newUser, setNewUser] = useState({
   nom: "",
@@ -58,7 +90,10 @@ const [selectedUser, setSelectedUser] =
       setUsers(response.data.utilisateurs);
     } catch (error) {
       console.error(error);
-      alert("Erreur chargement utilisateurs");
+      showMessage(
+        "Erreur",
+        "Impossible d'effectuer cette opération."
+      );
     } finally {
       setLoading(false);
     }
@@ -87,23 +122,35 @@ const viewUser = (user: User) => {
   setSelectedUser(user);
 };
 
-const deleteUser = async (id: number) => {
+const deleteUser = async (user: User) => {
   try {
     const confirmDelete = window.confirm(
-      "Voulez-vous vraiment supprimer cet utilisateur ?"
+      "Voulez-vous vraiment archiver ce compte ?"
     );
 
     if (!confirmDelete) return;
 
-    await api.delete(`/admin/user/${id}`);
+    await api.delete(
+        `/admin/user/${user.id}`,
+        {
+            data: {
+                bankId: user.comptes[0].bankId
+            } 
+        }
+    );
 
-    alert("✅ Utilisateur supprimé");
+    showMessage(
+      "Succès",
+      "✅ Compte archivé avec succès"
+    );
 
     loadUsers();
 
   } catch (error) {
-    console.error(error);
-    alert("❌ Erreur suppression utilisateur");
+    showMessage(
+      "Erreur",
+      "❌ Erreur lors de l'archivage du compte"
+    );
   }
 };
 
@@ -120,13 +167,19 @@ const changeRole = async (user: User) => {
       newRole: nouveauRole,
     });
 
-    alert(`✅ Nouveau rôle : ${nouveauRole}`);
+    showMessage(
+      "Succès",
+      `✅ Nouveau rôle : ${nouveauRole}`
+    );
 
     loadUsers();
 
   } catch (error) {
     console.error(error);
-    alert("❌ Erreur changement rôle");
+    showMessage(
+      "Erreur",
+      "❌ Erreur changement rôle"
+    );
   }
 };
 
@@ -151,7 +204,8 @@ const saveStatus = async () => {
 
       setStatusModal(false);
 
-      alert(
+      showMessage(
+        "Erreur",
         "Le compte possède déjà ce statut"
       );
 
@@ -180,7 +234,8 @@ const saveStatus = async () => {
     error.response?.data
   );
 
-  alert(
+  showMessage(
+    "Erreur",
     JSON.stringify(
       error.response?.data,
       null,
@@ -190,6 +245,46 @@ const saveStatus = async () => {
 }
 };
 
+const saveLimit = async ()=>{
+
+    try{
+
+        await api.put(
+            "/admin/account/set-limit",
+            {
+
+                userId:selectedAccount.userId,
+
+                bankId:selectedAccount.bankId,
+
+                limite:newLimit
+
+            }
+        );
+
+        showMessage(
+            "Succès",
+            "✅ Limite modifiée."
+        );
+
+        setLimitModal(false);
+
+        loadUsers();
+
+    }
+
+    catch(error:any){
+
+        showMessage(
+            "Erreur",
+            error.response?.data?.error ||
+            "Impossible de modifier la limite."
+        );
+
+    }
+
+};
+
 const createUser = async () => {
   try {
 
@@ -197,12 +292,15 @@ const createUser = async () => {
       "/auth/register",
       newUser
     );
+    await loadUsers();
 
-    alert(
+    setCreateModal(false);
+    
+    showMessage(
+      "Succès",
       "✅ Utilisateur créé avec succès"
     );
 
-    setCreateModal(false);
 
     setNewUser({
       nom: "",
@@ -216,91 +314,33 @@ const createUser = async () => {
 
   } catch (error) {
     console.error(error);
-    alert(
+    showMessage(
+      "Erreur",
       "❌ Erreur création utilisateur"
     );
   }
 };
 
+const showMessage = (
+  title: string,
+  text: string
+) => {
+
+  setMessageTitle(title);
+
+  setMessageText(text);
+
+  setMessageModal(true);
+
+};
+
   if (loading) {
     return (
-      <AdminLayout>
+      <Box>
         <h2>Chargement...</h2>
-      </AdminLayout>
+      </Box>
     );
   }
-
-  const userModal =
-  selectedUser && (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,.5)",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        zIndex: 9999,
-      }}
-    >
-      <div
-        style={{
-          width: "500px",
-          background: "#fff",
-          borderRadius: "12px",
-          padding: "25px",
-          position: "relative",
-        }}
-      >
-        <button
-          onClick={() => setSelectedUser(null)}
-          style={{
-            position: "absolute",
-            right: "15px",
-            top: "10px",
-            border: "none",
-            background: "none",
-            fontSize: "22px",
-            cursor: "pointer",
-          }}
-        >
-          ✖
-        </button>
-
-        <h2>👤 Détails utilisateur</h2>
-
-        <hr />
-
-        <p><strong>Nom :</strong> {selectedUser.nom}</p>
-
-        <p><strong>Email :</strong> {selectedUser.email}</p>
-
-        <p><strong>Téléphone :</strong> {selectedUser.telephone}</p>
-
-        <p><strong>Rôle :</strong> {selectedUser.role}</p>
-
-        <p>
-          <strong>Banque :</strong>{" "}
-          {selectedUser.comptes?.[0]?.banque}
-        </p>
-
-        <p>
-          <strong>Agence :</strong>{" "}
-          {selectedUser.comptes?.[0]?.code_agence}
-        </p>
-
-        <p>
-          <strong>Solde :</strong>{" "}
-          {selectedUser.comptes?.[0]?.solde}
-        </p>
-
-        <p>
-          <strong>Statut :</strong>{" "}
-          {selectedUser.comptes?.[0]?.statut}
-        </p>
-      </div>
-    </div>
-  );
 
 const statusModalContent = (
   statusModal && (
@@ -349,7 +389,7 @@ const statusModalContent = (
               setNewStatus(e.target.value)
             }
           />
-          BLOQUÉ
+          BLOQUE
         </label>
 
         <br />
@@ -364,7 +404,7 @@ const statusModalContent = (
               setNewStatus(e.target.value)
             }
           />
-          SUPPRIMÉ
+          SUPPRIME
         </label>
 
         <div
@@ -392,142 +432,429 @@ const statusModalContent = (
   )
 );
 
-const createModalContent =
-  createModal && (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background:
-          "rgba(0,0,0,.5)",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        zIndex: 9999,
-      }}
-    >
-      <div
-        style={{
-          width: "500px",
-          background: "#fff",
-          padding: "25px",
-          borderRadius: "12px",
-        }}
-      >
-        <h2>
-          ➕ Nouvel utilisateur
-        </h2>
+const limitModalContent =
 
-        <input
-          placeholder="Nom Complet"
-          value={newUser.nom}
-          onChange={(e) =>
-            setNewUser({
-              ...newUser,
-              nom: e.target.value,
-            })
-          }
-        />
+limitModal && (
 
-        <br /><br />
+<div
+style={{
+position:"fixed",
+inset:0,
+background:"rgba(0,0,0,.45)",
+display:"flex",
+justifyContent:"center",
+alignItems:"center",
+zIndex:9999
+}}
+>
 
-        <input
-          placeholder="Email"
-          value={newUser.email}
-          onChange={(e) =>
-            setNewUser({
-              ...newUser,
-              email: e.target.value,
-            })
-          }
-        />
+<div
+style={{
+background:"#fff",
+width:"420px",
+padding:"25px",
+borderRadius:"12px"
+}}
+>
 
-        <br /><br />
+<h2>
 
-        <input
-          placeholder="Téléphone"
-          value={newUser.telephone}
-          onChange={(e) =>
-            setNewUser({
-              ...newUser,
-              telephone: e.target.value,
-            })
-          }
-        />
+💳 Modifier la limite
 
-        <br /><br />
+</h2>
 
-        <input
-          placeholder="Code PIN"
-          value={newUser.code_pin}
-          onChange={(e) =>
-            setNewUser({
-              ...newUser,
-              code_pin: e.target.value,
-            })
-          }
-        />
+<input
 
-        <br /><br />
+type="number"
 
-        <select
-          value={newUser.code_agence}
-          onChange={(e) =>
-            setNewUser({
-              ...newUser,
-              code_agence:
-                e.target.value,
-            })
-          }
-        >
-          <option value="">
-            Choisir une banque
-          </option>
+value={newLimit}
 
-          {banks.map((bank: any) => (
-            <option
-              key={bank.id}
-              value={bank.code_agence}
-            >
-              {bank.nom}
-            </option>
-          ))}
-        </select>
+onChange={(e)=>setNewLimit(e.target.value)}
 
-        <br /><br />
+style={{
+width:"100%",
+padding:"12px",
+marginTop:"20px"
+}}
 
-        <div
-          style={{
-            display: "flex",
-            justifyContent:
-              "flex-end",
-            gap: "10px",
-          }}
-        >
-          <button
-            onClick={() =>
-              setCreateModal(false)
-            }
-          >
-            Annuler
-          </button>
+/>
 
-          <button
-            onClick={createUser}
-          >
-            Créer
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+<div
+style={{
+display:"flex",
+justifyContent:"flex-end",
+gap:"10px",
+marginTop:"20px"
+}}
+>
+
+<button
+onClick={()=>setLimitModal(false)}
+>
+
+Annuler
+
+</button>
+
+<button
+onClick={saveLimit}
+>
+
+Enregistrer
+
+</button>
+
+</div>
+
+</div>
+
+</div>
+
+);
+
+
+const messageModalContent =
+messageModal && (
+
+<div
+style={{
+position:"fixed",
+inset:0,
+background:"rgba(0,0,0,.45)",
+display:"flex",
+justifyContent:"center",
+alignItems:"center",
+zIndex:99999,
+}}
+>
+
+<div
+style={{
+background:"#fff",
+width:"420px",
+borderRadius:"12px",
+padding:"25px",
+position:"relative",
+boxShadow:"0 10px 30px rgba(0,0,0,.2)"
+}}
+>
+
+<button
+
+onClick={()=>setMessageModal(false)}
+
+style={{
+position:"absolute",
+right:"15px",
+top:"12px",
+border:"none",
+background:"none",
+fontSize:"20px",
+cursor:"pointer"
+}}
+
+>
+
+✖
+
+</button>
+
+<h2>
+
+{messageTitle}
+
+</h2>
+
+<hr />
+
+<p
+style={{
+marginTop:"20px",
+lineHeight:"28px"
+}}
+>
+
+{messageText}
+
+</p>
+
+<div
+style={{
+display:"flex",
+justifyContent:"flex-end",
+marginTop:"30px"
+}}
+>
+
+<button
+
+onClick={()=>setMessageModal(false)}
+
+style={{
+padding:"10px 25px",
+background:"#2563eb",
+color:"white",
+border:"none",
+borderRadius:"8px",
+cursor:"pointer"
+}}
+
+>
+
+OK
+
+</button>
+
+</div>
+
+</div>
+
+</div>
+
+);
+
+const blockAccount = async (compte: any) => {
+
+  try {
+
+    await api.put("/admin/account/status", {
+
+      userId: compte.userId,
+
+      bankId: compte.bankId,
+
+      statut: "BLOQUE",
+
+    });
+
+    showMessage(
+        "Succès",
+        "✅ Compte débloqué."
+    );
+
+    loadUsers();
+
+  } catch (error: any) {
+
+    showMessage(
+        "Erreur",
+        error.response?.data?.error ||
+        "Impossible de débloquer."
+    );
+
+  }
+
+};
+
+const unblockAccount = async (compte: any) => {
+
+  try {
+
+    await api.put("/admin/account/status", {
+
+      userId: compte.userId,
+
+      bankId: compte.bankId,
+
+      statut: "ACTIF",
+
+    });
+
+    showMessage(
+    "Succès",
+    "✅ Compte débloqué."
+);
+
+    loadUsers();
+
+  } catch (error: any) {
+
+    showMessage(
+        "Erreur",
+        error.response?.data?.error ||
+        "Impossible de débloquer."
+    );
+
+  }
+
+};
+
+const archiveAccount = async (compte: any) => {
+
+  try {
+
+    await api.delete(
+
+      `/admin/user/${compte.userId}`,
+
+      {
+
+        data: {
+
+          bankId: compte.bankId,
+
+        },
+
+      }
+
+    );
+
+    showMessage(
+        "Succès",
+        "✅ Compte archivé."
+    );
+
+    loadUsers();
+
+  }
+
+  catch (error: any) {
+
+    showMessage(
+        "Erreur",
+        error.response?.data?.error ||
+        "Erreur d'archivage."
+    );
+
+  }
+
+};
+
+const restoreAccount = async (compte: any) => {
+
+    try {
+
+        await api.put("/admin/account/restore", {
+
+            userId: compte.userId,
+
+            bankId: compte.bankId
+
+        });
+
+        showMessage(
+            "Succès",
+            "♻️ Compte restauré."
+        );
+
+        loadUsers();
+
+    }
+
+    catch (error: any) {
+
+        showMessage(
+            "Erreur",
+            error.response?.data?.error ||
+            "Impossible de restaurer."
+        );
+
+    }
+
+};
+
+const editLimit = (compte:any)=>{
+
+    setSelectedAccount(compte);
+
+    setNewLimit(
+        String(compte.limite_virement)
+            .replace(/\s/g, "")
+            .replace("FCFA", "")
+    );
+
+    setLimitModal(true);
+
+};
+
+const viewHistory = async (compte: any) => {
+
+  try {
+
+    const response = await api.post(
+
+      "/admin/account/report",
+
+      {
+
+        userId: compte.userId,
+
+        bankId: compte.bankId
+
+      },
+
+      {
+
+        responseType: "blob"
+
+      }
+
+    );
+
+    const url = window.URL.createObjectURL(
+      new Blob([response.data])
+    );
+
+    const link = document.createElement("a");
+
+    link.href = url;
+
+    link.download =
+      `Rapport_ACC-${compte.numero}.pdf`;
+
+    document.body.appendChild(link);
+
+    link.click();
+
+    link.remove();
+
+    window.URL.revokeObjectURL(url);
+
+  } catch (error: any) {
+
+    console.error(error);
+
+    showMessage(
+
+      "Erreur",
+
+      error.response?.data?.error ||
+
+      "Impossible de générer le rapport."
+
+    );
+
+  }
+
+};
 
   return (
     <>
-    {userModal}
+    <Box>
+    {limitModalContent}
     {statusModalContent}
-    {createModalContent}
-    <AdminLayout>
+    <CreateUserDialog
+        open={createModal}
+        onClose={() => setCreateModal(false)}
+        newUser={newUser}
+        setNewUser={setNewUser}
+        createUser={createUser}
+        banks={banks}
+    />
+    {messageModalContent}
+    
+    
+    <UserDialog
+    open={!!selectedUser}
+    user={selectedUser}
+    onClose={() => setSelectedUser(null)}
+    blockAccount={blockAccount}
+    unblockAccount={unblockAccount}
+    archiveAccount={archiveAccount}
+    restoreAccount={restoreAccount}
+    editLimit={editLimit}
+    viewHistory={viewHistory}
+/>
       <div style={{ padding: "20px" }}>
         <div
           style={{
@@ -580,10 +907,7 @@ const createModalContent =
                 <th style={th}>Email</th>
                 <th style={th}>Téléphone</th>
                 <th style={th}>Rôle</th>
-                <th style={th}>Banque</th>
-                <th style={th}>Agence</th>
-                <th style={th}>Solde</th>
-                <th style={th}>Statut</th>
+                <th style={th}>Nombre de comptes</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -598,24 +922,10 @@ const createModalContent =
                   <td style={td}>{user.role}</td>
 
                   <td style={td}>
-                    {user.comptes?.[0]?.banque}
+                      <strong>
+                          {user.comptes.length}
+                      </strong>
                   </td>
-
-                  <td style={td}>
-                    {user.comptes?.[0]?.code_agence}
-                  </td>
-
-                  <td
-                    style={{
-                      ...td,
-                      whiteSpace: "nowrap",
-                      fontWeight: "bold",
-                    }}
-                  >
-                    {user.comptes?.[0]?.solde}
-                  </td>
-
-                  <td>{user.comptes?.[0]?.statut}</td>
 
                   <td
                     style={{
@@ -634,22 +944,6 @@ const createModalContent =
                   </button>
 
                     <button
-                      title="Modifier le statut"
-                      style={actionBtn}
-                      onClick={() => changeStatus(user)}
-                    >
-                      🔒
-                    </button>
-
-                    <button
-                      title="Supprimer l'utilisateur"
-                      style={actionBtn}
-                      onClick={() => deleteUser(user.id)}
-                    >
-                      🗑
-                    </button>
-
-                    <button
                       title="Changer le rôle"
                       style={actionBtn}
                       onClick={() => changeRole(user)}
@@ -663,7 +957,7 @@ const createModalContent =
           </table>
         </div>
       </div>
-    </AdminLayout>
+    </Box>
     </>
   );
 }

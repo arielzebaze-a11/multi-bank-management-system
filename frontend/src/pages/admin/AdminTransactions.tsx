@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import api from "../../services/api";
-import AdminLayout from "../../layouts/AdminLayout";
+import { Box } from "@mui/material";
 
 interface Transaction {
   id: number;
@@ -48,7 +48,7 @@ export default function AdminTransactions() {
   }
 
   return (
-    <AdminLayout>
+    <Box>
       <div>
         <h1>💸 Transactions du système</h1>
 
@@ -100,7 +100,7 @@ export default function AdminTransactions() {
           </tbody>
         </table>
       </div>
-    </AdminLayout>
+    </Box>
   );
 }
 
